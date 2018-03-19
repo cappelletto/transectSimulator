@@ -88,7 +88,10 @@ function [output] = transectGenerator(shape_filename, simulated_filename, points
   sampling_region = zeros (N_TRANSECTS);  % empty container of segment where lands the random point
   total_points = 0;
   color_list = ['b' 'g' 'k' 'c']; % discrete color list for transsect segments
+  niter = 0;
   while (total_points < N_TRANSECTS)
+    niter++;
+    if (niter == 50) break;
     px = unifrnd(min_x,max_x);  % Random X-Y coordinates within the bounding box
     py = unifrnd(min_y,max_y);
     % Test to check if it falls withing each segment of the polygon
