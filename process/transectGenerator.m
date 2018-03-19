@@ -127,7 +127,10 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   
   % windowLength = sum length of each polygon
   windowLength = sum(segment_length);
-
+  for _index=1:K
+    acum_segment_length(_index) = sum(segment_length(1:_index));
+  end
+  
   % now, we must compute the transect template length. At this point, we must make a
   % difference between standard AGGRA (parallel) so modified template (SERIES)
   
@@ -203,30 +206,70 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
 % At this point we have a vector of sampling points with their coordinates and target region
 % ----------------------------------------------------------------------------
 
-  % Base template generation, centered at (0,0)
-  if (TRANSECT_TYPE==TYPE_AGGRA)
-    template = templateAGRRA2(WIDTH,LENGTH,SKIP);
-  else
-    template = templateSERIES(WIDTH,LENGTH,SKIP);
-  end
-  
   % Stores the total of colonies sampled for each TRANSECT
   colonies_sampled = zeros(N_TRANSECTS,1);
-  
-  for i=1:N_TRANSECTS
-    vr = v(sampling_region(i),:); % we check the corresponding region, and retrieve its orientation vector
-    vr = vr / norm(vr);
-    templater = rotatePolygon(template, -vr); % fixed transect orientation
-    d = [sampling_points(i,1) sampling_points(i,2)];
-    templater = traslatePolygon(templater, d);
-    % Placed the rotated and traslated version of the template over the transect
-    % Next step: to compute how many colonies fall within the sampling transect
-    [in,on] =  inpolygon(colonies(:,1),colonies(:,2), templater(:,1), templater(:,2));
-    colonies_sampled(i) = (sum(in));
-    % And we mark those sampled in the current transect
-    scatter (colonies(in,1),colonies(in,2),12,'k',"filled")
-    plot (templater(:,1),templater(:,2))
+
+  % Base template generation, centered at (0,0) is perfectly valid for AGGRA template
+  if (TRANSECT_TYPE==TYPE_AGGRA)
+    template = templateAGRRA2(WIDTH,LENGTH,SKIP);
+
+    for i=1:N_TRANSECTS
+      vr = v(sampling_region(i),:); % we check the corresponding region, and retrieve its orientation vector
+      vr = vr / norm(vr);
+      templater = rotatePolygon(template, -vr); % fixed transect orientation
+      d = [sampling_points(i,1) sampling_points(i,2)];
+      templater = traslatePolygon(templater, d);
+      % Placed the rotated and traslated version of the template over the transect
+      % Next step: to compute how many colonies fall within the sampling transect
+      [in,on] =  inpolygon(colonies(:,1),colonies(:,2), templater(:,1), templater(:,2));
+      colonies_sampled(i) = (sum(in));
+      % And we mark those sampled in the current transect
+      scatter (colonies(in,1),colonies(in,2),12,'k',"filled")
+      plot (templater(:,1),templater(:,2))
+    end
+
+  % But if we are dealing with SERIES transects, we  must correct each segment according to
+  % its start point, as it may fall in different segments of the window, and will have
+  % different orientations
+  else
+
+  % template = templateSERIES(WIDTH,LENGTH,SKIP);
+    base_segment = baseTransect(WIDTH,LENGTH);
+    NUMBER_SEGMENTS = 4;  % this is a user selectable parameter that only applies to SERIES template
+    
+    for i=1:N_TRANSECTS
+
+      covered_length = 0;
+      seed_position = [sampling_points(i,1) sampling_points(i,2)];
+      
+      for j=1:NUMBER_SEGMENTS
+
+        % we must figure out in wich region falls the current segment start point
+        
+        % Here, it must be check EACH transect segment to correct its position and orientation
+        vr = v(sampling_region(i),:); % we check the corresponding region, and retrieve its orientation vector
+        vr = vr / norm(vr);
+        templater = rotatePolygon(base_segment, -vr); % applies transect orientation
+
+        
+        templater = traslatePolygon(templater, seed_position);
+
+        covered_length = covered_length + LENGTH + SKIP;  % for each new segment, we account LENGTH + SKIP as covered
+      end
+      
+
+      % Placed the rotated and traslated version of the template over the transect
+      % Next step: to compute how many colonies fall within the sampling transect
+      [in,on] =  inpolygon(colonies(:,1),colonies(:,2), templater(:,1), templater(:,2));
+      colonies_sampled(i) = (sum(in));
+      % And we mark those sampled in the current transect
+      scatter (colonies(in,1),colonies(in,2),12,'k',"filled")
+      plot (templater(:,1),templater(:,2))
+    end
+
   end
+  
+  
   
   output = colonies_sampled; 
   
