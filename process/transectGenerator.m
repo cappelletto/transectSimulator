@@ -12,14 +12,16 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   WIDTH
   LENGTH
   SKIP
-  if (TRANSECT_TYPE==0)
+
+  TYPE_AGGRA = 0;
+  TYPE_SERIES = 1;
+
+  if (TRANSECT_TYPE==TYPE_AGGRA)
     printf ('TRANSECT_TYPE: AGGRA - PARALLEL\n')
   else
     printf ('TRANSECT_TYPE: SERIES\n')
   endif
  
-  TYPE_AGGRA = 0;
-  TYPE_SERIES = 1;
   % Import file containing polygon description as a closed loop: A-B-C-D-E-F-A
   polygon_shape = load (shape_filename);
 
@@ -66,18 +68,14 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   % Notice that the end_point of the first QUAD will be the start_point of the following QUAD
   start_points = (polygon_shape(A,:) + polygon_shape(D,:))/2;
   end_points   = (polygon_shape(B,:) + polygon_shape(C,:))/2;
-  % Compute the unitary vector along the midsection of the transect segments
+  % Compute the vector along the midsection of the transect segments
   v = end_points - start_points;
   % Compute the segment length
   segment_length = sqrt(sum(v'.*v')');
   % The number of rows of the previous 3 vectors is K = number of segments
-  % Here we precompute two vector U1, U2 perpendicular to v = [x y]
-  % U1.v = 0, U2.v = 0 so U1 can be obtained as U1 = -U2 and U1 = [y -x]
-  U1 = [v(:,2), -v(:,1)];
-  U2 = -U1;
+
   % At this point, we have separated each transect segment, with its midsection 
-  % vector v and both perpendicular vectors U1,U2. Now, we need to generate the 
-  % virtual sampling transects according each sampling protocol
+  % vector v. Now, we need to generate the virtual sampling transects according each sampling protocol
   % ----------------------------------------------------------------------------  
 
   % plot the original shape
@@ -151,26 +149,35 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   % are already given from the last segment. To compute X and Y we just need B an C
   % and the vector 'v' (in the other direction because input polygon is described
   % TOP_LEFT to BOTTOM_RIGHT)
- 
+  seedVector = v(K,:);
+  seedVector = seedVector / norm(seedVector);
+  
   pB = segments(2,:,K); % corner B
   pC = segments(3,:,K); % corner C
-  pX = pB + (-v) * seedAreaLength;  % corner X: A'
-  pY = pC + (-v) * seedAreaLength;  % corner Y: D'
+  pX = pB + (-seedVector) * seedAreaLength;  % corner X: A'
+  pY = pC + (-seedVector) * seedAreaLength;  % corner Y: D'
 
+  % Plot the corners of the seedArea
+  scatter (pB(1),pB(2),12,'k')
+  scatter (pC(1),pC(2),12,'k')
+  scatter (pX(1),pX(2),12,'k')
+  scatter (pY(1),pY(2),12,'k')
+    
   % Now we need to find the bounding box for the polygon X B C Y
   seedPolygon = [pX; pB; pC; pY];
-  size (seedPolygon)
   
   min_x = min (seedPolygon(:,1)); max_x = max (seedPolygon(:,1));
   min_y = min (seedPolygon(:,2)); max_y = max (seedPolygon(:,2));
 
   while (total_points < N_TRANSECTS)
+      
     px = unifrnd(min_x,max_x);  % Random X-Y coordinates within the bounding box
     py = unifrnd(min_y,max_y);
     % Test to check if it falls withing each segment of the polygon
     inside = 0;
     %--------
-    % Check in which transect segment (region) is placed
+    % Check in which transect segment (region) is placed 
+    % We still need to check ALL the segments, as we may fall inside another segment (specially for AGGRA)
     for j=1:K
       [in,on] =  inpolygon(px, py, segments(:,1,j), segments(:,2,j));
       %--------
@@ -197,14 +204,19 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
 % ----------------------------------------------------------------------------
 
   % Base template generation, centered at (0,0)
-  template = templateAGRRA3(WIDTH,LENGTH,SKIP);
+  if (TRANSECT_TYPE==TYPE_AGGRA)
+    template = templateAGRRA2(WIDTH,LENGTH,SKIP);
+  else
+    template = templateSERIES(WIDTH,LENGTH,SKIP);
+  end
+  
   % Stores the total of colonies sampled for each TRANSECT
   colonies_sampled = zeros(N_TRANSECTS,1);
   
   for i=1:N_TRANSECTS
     vr = v(sampling_region(i),:); % we check the corresponding region, and retrieve its orientation vector
     vr = vr / norm(vr);
-    templater = rotatePolygon(template, vr);
+    templater = rotatePolygon(template, -vr); % fixed transect orientation
     d = [sampling_points(i,1) sampling_points(i,2)];
     templater = traslatePolygon(templater, d);
     % Placed the rotated and traslated version of the template over the transect
@@ -231,7 +243,7 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
 end
 
 % Function that creates 4 non-contiguous transects, colinear along L
-function [template] = templateAGRRA3(W,L,Sep)
+function [template] = templateSERIES(W,L,Sep)
   base = baseTransect(W,L);
   % d: displacement vector among contiguous transects
   d = [L + Sep, 0];
