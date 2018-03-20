@@ -235,26 +235,39 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
 
   % template = templateSERIES(WIDTH,LENGTH,SKIP);
     base_segment = baseTransect(WIDTH,LENGTH);
-    NUMBER_SEGMENTS = 4;  % this is a user selectable parameter that only applies to SERIES template
+    N_SEGMENTS = 4;  % this is a user selectable parameter that only applies to SERIES template
     
     for i=1:N_TRANSECTS
 
-      covered_length = 0;
+      covered_length = 0; % the length covered so far
       seed_position = [sampling_points(i,1) sampling_points(i,2)];
       
-      for j=1:NUMBER_SEGMENTS
-
+      for j=1:N_SEGMENTS
         % we must figure out in wich region falls the current segment start point
+        % For this, we can test the covered_length against each segment length
+        current_region = sum (acum_segment_length < covered_length) + 1 % so far, it works
+
+        % This method provides how much has been covered as excess from the start of the current region
+        % It can be used as the distance from the start_point to the seed_position
+        excess_length = acum_segment_length(current_region) - covered_length;
         
-        % Here, it must be check EACH transect segment to correct its position and orientation
-        vr = v(sampling_region(i),:); % we check the corresponding region, and retrieve its orientation vector
+        % Here, we retrieve the orientation vector
+        vr = v(current_region,:); % we check the corresponding region, and retrieve its orientation vector
         vr = vr / norm(vr);
+
+        % Now, we apply the rotation to the base_segment template
         templater = rotatePolygon(base_segment, -vr); % applies transect orientation
 
+        % Finally, we compute the seed_position where we will traslate the rotated template
+        seed_position = seed_position + excess_length;
         
         templater = traslatePolygon(templater, seed_position);
-
+        
         covered_length = covered_length + LENGTH + SKIP;  % for each new segment, we account LENGTH + SKIP as covered
+     
+
+
+
       end
       
 
