@@ -12,6 +12,7 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   WIDTH
   LENGTH
   SKIP
+  N_SEGMENTS = 4  % Number of segments of the transect pattern
 
   TYPE_AGGRA = 0;
   TYPE_SERIES = 1;
@@ -32,12 +33,6 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   % We split X and Y polygon vertex coordinates
   xv = polygon_shape(:,1);
   yv = polygon_shape(:,2);
-
-%  clf;  
-%  plot (xv,yv); title("Transect shapefile")
-%  hold on
-%  scatter (xv(1),yv(1))
-%  scatter (xv(2),yv(2),'k')
 
   % Now, we need to split the polygon into K quad-polygons. We assume that the polygon
   % is described as A-B-C-D-E-F-A list, where A-B-E-F and B-C-D-E for two CW polygons
@@ -66,16 +61,18 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   end
 
   % Notice that the end_point of the first QUAD will be the start_point of the following QUAD
-  start_points = (polygon_shape(A,:) + polygon_shape(D,:))/2;
-  end_points   = (polygon_shape(B,:) + polygon_shape(C,:))/2;
+  end_points = (polygon_shape(A,:) + polygon_shape(D,:))/2;
+  start_points   = (polygon_shape(B,:) + polygon_shape(C,:))/2;
   % Compute the vector along the midsection of the transect segments
-  v = end_points - start_points;
+%  v = end_points - start_points
+  v = polygon_shape(A,:) - polygon_shape(B,:)
+  u = polygon_shape(C,:) - polygon_shape(B,:)
   % Compute the segment length
   segment_length = sqrt(sum(v'.*v')');
-  % The number of rows of the previous 3 vectors is K = number of segments
-
-  % At this point, we have separated each transect segment, with its midsection 
-  % vector v. Now, we need to generate the virtual sampling transects according each sampling protocol
+  segment_width = sqrt(sum(u'.*u')');
+  
+  % At this point, we have separated each transect segment, with its midsection and the
+  % base vector U-V. Now, we need to generate the virtual sampling transects according each sampling protocol
   % ----------------------------------------------------------------------------  
 
   % plot the original shape
@@ -235,7 +232,6 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
 
   % template = templateSERIES(WIDTH,LENGTH,SKIP);
     base_segment = baseTransect(WIDTH,LENGTH);
-    N_SEGMENTS = 4;  % this is a user selectable parameter that only applies to SERIES template
     
     for i=1:N_TRANSECTS
 
