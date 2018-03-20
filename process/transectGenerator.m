@@ -83,13 +83,10 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   plot (start_points(:,1),start_points(:,2),'r')
   plot (end_points(:,1),end_points(:,2),'r')
   % plot the UV systems base for each region
-  
-  
+    
   quiver (corners(3,1,:), corners(3,2,:), u(:,1)./segment_width , u(:,2)./segment_width, 0.1, "linewidth", 2)
   quiver (corners(3,1,:), corners(3,2,:), v(:,1)./segment_length , v(:,2)./segment_length, 0.1, "linewidth", 2)
 
-  return
- 
   % Loading the real colonies X-Y coordinates
   % real_colonies = load(points_filename);
   % Loading the simulated colonies (multicolumn data: ID, X, Y, SIM_ID
@@ -99,8 +96,8 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   
   % Creation of 100+ random points that fall within the polygon_shape
   sampling_points = zeros (N_TRANSECTS,2);  % empty container of points within the polygon
-  sampling_region = zeros (N_TRANSECTS);  % empty container of segment where lands the random point
-  color_list = ['b' 'g' 'k' 'c']; % discrete color list for transect segments
+  sampling_region = zeros (N_TRANSECTS);    % empty container of segment where lands the random point
+  color_list = ['b' 'g' 'k' 'c'];           % discrete color list for transect segments
   
   % TODO: improve sampling method. Starting points along all the shape window can produce
   % partially invalid transects, as part of them may fall outside the shape window.
@@ -111,7 +108,7 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   
   % INFO: For the current implementation, we assume that the starting point for the
   % transects as the rightmost point (EAST), as the predominant current is pointing
-  % EAST-WEST.
+  % EAST-WEST. We will be using as pivot the corner C:3
   
   % Now, we define the bounding box for the starting seeds. This will speed-up this part
   % because the search area will be smaller, when compared to all the window
@@ -124,14 +121,11 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   
   % The polygon is described CLOCKWISE as A-B-C-D, so the points B and C define the
   % last segment, in the middle of which, we will pace our start point P
-%  startPoint = (segments(2,:,K) + segments(3,:,K))/2;
 
-  % To compute the endPoint we must substract the complete transect template length to the 
-  % window length. This will give the size of the safe window inside of which we must
-  % sample to assure that transect template is contained inside the window.
-  
-  % windowLength = sum length of each polygon
+  % windowLength is the sum of lengths of all regions. This is the maximum length to our transect
   windowLength = sum(segment_length);
+  % acum_segment_length is the accumulated length for each region. It will be used to check
+  % in which region we fall for each transect segment
   for _index=1:K
     acum_segment_length(_index) = sum(segment_length(1:_index));
   end
@@ -147,36 +141,25 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
     transectLength = 4 * LENGTH + 3 * SKIP;
   endif
   
-  % The remaining length is the largest size of the rectangle where we must spawn 
-  % the sampling seed points to be used in the next step.
+  % The remaining length is the largest size of the orientated rectangle where we 
+  % can spawn the sampling seed points to be used in the next step.
   windowLength
   transectLength
   seedAreaLength = windowLength - transectLength
   
-  % To find the vertex of the seedPolygon can be described as X B C Y, where B C
-  % are already given from the last segment. To compute X and Y we just need B an C
-  % and the vector 'v' (in the other direction because input polygon is described
-  % TOP_LEFT to BOTTOM_RIGHT)
-  seedVector = v(K,:);
-  seedVector = seedVector / norm(seedVector);
-  
-  pB = corners(2,:,K); % corner B
-  pC = corners(3,:,K); % corner C
-  pX = pB + (-seedVector) * seedAreaLength;  % corner X: A'
-  pY = pC + (-seedVector) * seedAreaLength;  % corner Y: D'
+  % To generate the sampling points, we can do it normalized in the UV space
+  % and the remap it to the full extent of the available space
 
-  % Plot the corners of the seedArea
-  scatter (pB(1),pB(2),12,'k')
-  scatter (pC(1),pC(2),12,'k')
-  scatter (pX(1),pX(2),12,'k')
-  scatter (pY(1),pY(2),12,'k')
-    
-  % Now we need to find the bounding box for the polygon X B C Y
-  seedPolygon = [pX; pB; pC; pY];
+  % normalized sampling coordinates in UV space N_TRANSECTS rows x 2 columns (U V)
+  sampling_points = unifrnd(0,1, N_TRANSECTS, 2)
+  % For the given distance in the V direction, and scaled with the seedAreaLength
+  % we can compute in which region it will fall, and then correct the sampling point
+  % range according to the segment_width
   
-  min_x = min (seedPolygon(:,1)); max_x = max (seedPolygon(:,1));
-  min_y = min (seedPolygon(:,2)); max_y = max (seedPolygon(:,2));
 
+  return %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  
+  
   while (total_points < N_TRANSECTS)
       
     px = unifrnd(min_x,max_x);  % Random X-Y coordinates within the bounding box
