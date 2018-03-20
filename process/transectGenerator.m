@@ -3,15 +3,15 @@
 % shape_filename: file containing polygon as a closed loop: A-B-C-D-E-F-A
 % points_filename: file containing X-Y coordinates of real colonies 
 % shape_filename: file containing X-Y coordinates of simulated colonies
-function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANSECTS = 10, WIDTH, LENGTH, SKIP, TRANSECT_TYPE)
+function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANSECTS = 10, TEMPLATE_PARAMS, TRANSECT_TYPE)
   %------------------------------------------------
   %- Transect shape polygon loading
   %------------------------------------------------
   % We print the input parameters in the console just for verification purposes
   N_TRANSECTS
-  WIDTH
-  LENGTH
-  SKIP
+  WIDTH = TEMPLATE_PARAMS(1)
+  LENGTH = TEMPLATE_PARAMS(2)
+  SKIP = TEMPLATE_PARAMS(3)
   N_SEGMENTS = 4  % Number of segments of the transect pattern
 
   TYPE_AGGRA = 0;
@@ -44,34 +44,34 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   % to be employed as an approximation of the skeleton of that transect segment
   
   % The starting point is the average between the FIRST and LAST point of the 4-vertex list
-  % Virtual loop for the current QUAD: A-B-C-D
+  % Virtual loop for the current QUAD: A-B-C-D clockwise
   A = quad_list(:,1);   B = quad_list(:,2);
   C = quad_list(:,3);   D = quad_list(:,4);
    
-  % Construct the transect segments (as 3 dimensional array)
+  % Construct the region corners (as 3 dimensional array)
   % Dim 1: A B C D
   % Dim 2: X Y
   % Dim 3: Segment
-  segments = zeros(4,2,K);
+  corners = zeros(4,2,K);
   for i=1:K
-    segments(1,:,i)= [xv(A(i)) yv(A(i))];
-    segments(2,:,i)= [xv(B(i)) yv(B(i))];
-    segments(3,:,i)= [xv(C(i)) yv(C(i))];
-    segments(4,:,i)= [xv(D(i)) yv(D(i))];
+    corners(1,:,i)= [xv(A(i)) yv(A(i))];
+    corners(2,:,i)= [xv(B(i)) yv(B(i))];
+    corners(3,:,i)= [xv(C(i)) yv(C(i))];
+    corners(4,:,i)= [xv(D(i)) yv(D(i))];
   end
 
-  % Notice that the end_point of the first QUAD will be the start_point of the following QUAD
-  end_points = (polygon_shape(A,:) + polygon_shape(D,:))/2;
-  start_points   = (polygon_shape(B,:) + polygon_shape(C,:))/2;
+  % Notice that the end_point of the first QUAD will be the start_point of the following QUAD and so on
+  end_points   = (polygon_shape(A,:) + polygon_shape(D,:))/2;
+  start_points = (polygon_shape(B,:) + polygon_shape(C,:))/2;
   % Compute the vector along the midsection of the transect segments
 %  v = end_points - start_points
-  v = polygon_shape(A,:) - polygon_shape(B,:)
-  u = polygon_shape(C,:) - polygon_shape(B,:)
+  v = polygon_shape(D,:) - polygon_shape(C,:) %vector C->D
+  u = polygon_shape(B,:) - polygon_shape(C,:) %vector C->B
   % Compute the segment length
   segment_length = sqrt(sum(v'.*v')');
   segment_width = sqrt(sum(u'.*u')');
   
-  % At this point, we have separated each transect segment, with its midsection and the
+  % At this point, we have separated each window region, with its midsection and the
   % base vector U-V. Now, we need to generate the virtual sampling transects according each sampling protocol
   % ----------------------------------------------------------------------------  
 
@@ -79,8 +79,16 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   clf
   plot (polygon_shape(:,1),polygon_shape(:,2))
   hold on
+  % plot the midsection line
   plot (start_points(:,1),start_points(:,2),'r')
   plot (end_points(:,1),end_points(:,2),'r')
+  % plot the UV systems base for each region
+  
+  
+  quiver (corners(3,1,:), corners(3,2,:), u(:,1)./segment_width , u(:,2)./segment_width, 0.1, "linewidth", 2)
+  quiver (corners(3,1,:), corners(3,2,:), v(:,1)./segment_length , v(:,2)./segment_length, 0.1, "linewidth", 2)
+
+  return
  
   % Loading the real colonies X-Y coordinates
   % real_colonies = load(points_filename);
@@ -152,8 +160,8 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   seedVector = v(K,:);
   seedVector = seedVector / norm(seedVector);
   
-  pB = segments(2,:,K); % corner B
-  pC = segments(3,:,K); % corner C
+  pB = corners(2,:,K); % corner B
+  pC = corners(3,:,K); % corner C
   pX = pB + (-seedVector) * seedAreaLength;  % corner X: A'
   pY = pC + (-seedVector) * seedAreaLength;  % corner Y: D'
 
@@ -179,7 +187,7 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
     % Check in which transect segment (region) is placed 
     % We still need to check ALL the segments, as we may fall inside another segment (specially for AGGRA)
     for j=1:K
-      [in,on] =  inpolygon(px, py, segments(:,1,j), segments(:,2,j));
+      [in,on] =  inpolygon(px, py, corners(:,1,j), corners(:,2,j));
       %--------
       % If 'in', we increase the number of points and store its coordinates and region
       if (in)
