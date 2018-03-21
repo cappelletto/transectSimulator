@@ -153,13 +153,14 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   % and the remap it to the full extent of the available space
 
   % normalized sampling coordinates in UV space N_TRANSECTS rows x 2 columns (U V)
-  sampling_points_uv = unifrnd(0,1, N_TRANSECTS+1, 2);
+  % QUICK FIX: There is a bug that creates sample_points outside the transect box due to excess in U dimension (width)
+  sampling_points_uv = unifrnd(0,0.95, N_TRANSECTS, 2);
   % For the given distance in the V direction, and scaled with the seedAreaLength
   % we can compute in which region it will fall, and then correct the sampling point
   % range according to the segment_width
 
   % we must scale sampling vector in V direction according to the seedAreaLength/windowLength ratio
-  sampling_points_uv(:,2)=[0.0:1/N_TRANSECTS:1.0] * seedAreaLength/windowLength; %TODO
+  sampling_points_uv(:,2)= sampling_points_uv(:,2) * seedAreaLength/windowLength; %TODO
   %sampling_points_uv(:,2)=[0.0:1/N_TRANSECTS:1.0];
 
   %sampling_points_uv
@@ -168,6 +169,8 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   norm_acum_length = acum_segment_length / windowLength
 
   % Here we correct the length, orientation and region assigned to each sampling point
+  % We can model each transect segment as a new sampling point, so they will be treated in the same way
+  
   for i=1:N_TRANSECTS
     
 %    covered_length = sampling_points_uv(i,2) * transectLength
@@ -182,17 +185,36 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
     % Third, we remap local UV to global XY
     % For this, we start from pivot corner C
     pointXY = cornerC(current_region,:);
-    scatter (pointXY(1), pointXY(2), 20,'g',"filled")
     
+    %BUG: I have no clue why I can't do this as a direct sum*product
     pointXY(1) = pointXY(1) + sampling_points_uv(i,1)*uu(current_region,1);
     pointXY(2) = pointXY(2) + sampling_points_uv(i,1)*uu(current_region,2);
 
     pointXY(1) = pointXY(1) + norm_excess_length*vv(current_region,1);
     pointXY(2) = pointXY(2) + norm_excess_length*vv(current_region,2);
 
-    scatter (pointXY(1), pointXY(2), 20,'k',"filled")
+    scatter (pointXY(1), pointXY(2), 15,'k',"filled")
     
-    %printf ("\n")
+    % now we iterate for each transect segment (TODO: matrix!!!)
+    for j=1:N_SEGMENTS
+      if (TRANSECT_TYPE==TYPE_AGGRA)
+        % if AGGRA then are parallel, then the total length is LENGTH
+        
+      else
+        % if non-AGGRA: SERIES; then the total length is 4*L + 3*S
+        base = baseTransect(W,L);
+        % d: displacement vector among contiguous transects
+        d = [L + Sep, 0];
+        % From the base polygon, we create 2 on each side, by traslation in Y axis
+        t1 = traslatePolygon (base, 0*d);
+        t2 = traslatePolygon (base, 1*d);
+        t3 = traslatePolygon (base, 2*d);
+        t4 = traslatePolygon (base, 3*d);
+        template = [t1; t2; t3; t4];
+        
+      end
+    end  
+
   end
   
   
