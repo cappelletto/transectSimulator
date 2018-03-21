@@ -62,22 +62,21 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   end
 
   % Notice that the end_point of the first QUAD will be the start_point of the following QUAD and so on
-  end_points   = (polygon_shape(A,:) + polygon_shape(D,:))/2;
-  start_points = (polygon_shape(B,:) + polygon_shape(C,:))/2;
+  end_points   = (cornerA + cornerD)/2;
+  start_points = (cornerB + cornerC)/2;
   % Compute the vector along the midsection of the transect segments
 %  v = end_points - start_points
-  cornerD
-  v = cornerD - cornerC %vector C->D
-  u = cornerB - cornerC %vector C->D
+  uu = cornerB - cornerC; %vector C->D
+  vv = cornerD - cornerC; %vector C->D
   % Compute the segment length
 
-  segment_length = sqrt(sum(v'.*v')');
-  segment_width = sqrt(sum(u'.*u')');
+  segment_width = sqrt(sum(uu'.*uu')');
+  segment_length = sqrt(sum(vv'.*vv')');
   
   % We normalize U V vectors
-  u = u ./segment_width;
-  v = v ./segment_length;
-  
+  u = uu ./segment_width;
+  v = vv ./segment_length;
+ 
   % At this point, we have separated each window region, with its midsection and the
   % base vector U-V. Now, we need to generate the virtual sampling transects according each sampling protocol
   % ----------------------------------------------------------------------------  
@@ -90,16 +89,15 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   plot (start_points(:,1),start_points(:,2),'r')
   plot (end_points(:,1),end_points(:,2),'r')
   % plot the UV systems base for each region
-    
   quiver (cornerC(:,1), cornerC(:,2), u(:,1) , u(:,2), 0.1, "linewidth", 2)
   quiver (cornerC(:,1), cornerC(:,2), v(:,1) , v(:,2), 0.1, "linewidth", 2)
-
+  
   % Loading the real colonies X-Y coordinates
   % real_colonies = load(points_filename);
   % Loading the simulated colonies (multicolumn data: ID, X, Y, SIM_ID
   colonies = load(colonies_filename);
   
-  scatter(colonies(:,1),colonies(:,2),20,'y',"filled") 
+  %scatter(colonies(:,1),colonies(:,2),20,'y',"filled");
   
   color_list = ['b' 'g' 'k' 'c'];           % discrete color list for transect segments
   
@@ -155,27 +153,48 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   % and the remap it to the full extent of the available space
 
   % normalized sampling coordinates in UV space N_TRANSECTS rows x 2 columns (U V)
-  sampling_points_uv = unifrnd(0,1, N_TRANSECTS+1, 2)
+  sampling_points_uv = unifrnd(0,1, N_TRANSECTS+1, 2);
   % For the given distance in the V direction, and scaled with the seedAreaLength
   % we can compute in which region it will fall, and then correct the sampling point
   % range according to the segment_width
 
-  sampling_points_uv(:,2)=[0.0:1/N_TRANSECTS:1.0];
+  % we must scale sampling vector in V direction according to the seedAreaLength/windowLength ratio
+  sampling_points_uv(:,2)=[0.0:1/N_TRANSECTS:1.0] * seedAreaLength/windowLength; %TODO
+  %sampling_points_uv(:,2)=[0.0:1/N_TRANSECTS:1.0];
 
-  segment_length
-  norm_acum_length = acum_segment_length / sum (acum_segment_length)
-  
+  %sampling_points_uv
+  segment_length = segment_length';
+  norm_segment_length = segment_length / windowLength
+  norm_acum_length = acum_segment_length / windowLength
+
   % Here we correct the length, orientation and region assigned to each sampling point
   for i=1:N_TRANSECTS
     
-    covered_length = sampling_points_uv(i,2) * transectLength
-    % First, we see the region
-    current_region = sum (acum_segment_length < covered_length) + 1 % so far, it works
+%    covered_length = sampling_points_uv(i,2) * transectLength
+%    covered_length = sampling_points_uv(i,2) * windowLength; % TODO: cambiar a seedAreaLength
+    % First, we seek in which region it falls
+    current_region = sum (norm_acum_length < sampling_points_uv(i,2)) + 1; % so far, it works
 
-    % for each UV point, we repoject onto its XY pair
-    excess_length = acum_segment_length(current_region) - covered_length
+    % Second, we compute the UV coordinates in the current_region UV local system.
+    norm_excess_length = sampling_points_uv(i,2) - norm_acum_length(current_region) + norm_segment_length(current_region);
+    norm_excess_length = norm_excess_length/norm_segment_length(current_region);
+    
+    % Third, we remap local UV to global XY
+    % For this, we start from pivot corner C
+    pointXY = cornerC(current_region,:);
+    scatter (pointXY(1), pointXY(2), 20,'g',"filled")
+    
+    pointXY(1) = pointXY(1) + sampling_points_uv(i,1)*uu(current_region,1);
+    pointXY(2) = pointXY(2) + sampling_points_uv(i,1)*uu(current_region,2);
 
+    pointXY(1) = pointXY(1) + norm_excess_length*vv(current_region,1);
+    pointXY(2) = pointXY(2) + norm_excess_length*vv(current_region,2);
+
+    scatter (pointXY(1), pointXY(2), 20,'k',"filled")
+    
+    %printf ("\n")
   end
+  
   
   return %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % ----------------------------------------------------------------------------
