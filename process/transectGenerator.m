@@ -1,5 +1,10 @@
 % Based on https://octave.sourceforge.io/octave/function/inpolygon.html sample code
 
+% TODO: Export only non-NULL entries for simulations (instead of filling with ZEROES)
+% TODO: Create bool ON/OFF entry list to check which must be exported
+% TODO: Current UV mapping approach may tend to produce out-of-bound colony seeds as the segment
+% polygons require 2D transformation using a 4-point correspondence
+
 % shape_filename: file containing polygon as a closed loop: A-B-C-D-E-F-A
 % points_filename: file containing X-Y coordinates of real colonies 
 % shape_filename: file containing X-Y coordinates of simulated colonies
@@ -12,7 +17,7 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   WIDTH = TEMPLATE_PARAMS(1)
   LENGTH = TEMPLATE_PARAMS(2)
   SKIP = TEMPLATE_PARAMS(3)
-  N_SEGMENTS = 4  % Number of segments of the transect pattern
+  N_SEGMENTS = 8  % Number of segments of the transect pattern
 
   TYPE_AGGRA = 0;
   TYPE_SERIES = 1;
@@ -97,7 +102,7 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   % Loading the simulated colonies (multicolumn data: ID, X, Y, SIM_ID
   colonies = load(colonies_filename);
   
-  %scatter(colonies(:,1),colonies(:,2),20,'y',"filled");
+  scatter(colonies(:,1),colonies(:,2),20,'y',"filled");
   
   color_list = ['b' 'g' 'k' 'c'];           % discrete color list for transect segments
   
@@ -196,15 +201,24 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
     scatter (pointXY(1), pointXY(2), 15,'k',"filled")
     
     % now we iterate for each transect segment (TODO: matrix!!!)
+    % If TRANSECT_TYPE == TYPE_AGGRA then we may not need to separate each segment, as we already have a templateAGRRA1
+    % However, we can force every implementation as an iterated one, so we have a single model.
+    % For PARALLEL model, all pivot/seed points will share the same segment/orientation
+    % For SERIES models, each segment must be checked against all regions
     for j=1:N_SEGMENTS
       if (TRANSECT_TYPE==TYPE_AGGRA)
         % if AGGRA then are parallel, then the total length is LENGTH
-        
+        base = baseTransect(WIDTH,LENGTH);
+%        base = templateAGRRA1(WIDTH, LENGTH,SKIP);
+        base = traslatePolygon (base, [0 SKIP*(j-(N_SEGMENTS)/2 - 0.5) ] );
+        base = traslatePolygon (base, pointXY);
+
+        plot (base(:,1),base(:,2))
       else
         % if non-AGGRA: SERIES; then the total length is 4*L + 3*S
-        base = baseTransect(W,L);
+        base = baseTransect(WIDTH,LENGTH);
         % d: displacement vector among contiguous transects
-        d = [L + Sep, 0];
+        d = [LENGTH + SKIP, 0];
         % From the base polygon, we create 2 on each side, by traslation in Y axis
         t1 = traslatePolygon (base, 0*d);
         t2 = traslatePolygon (base, 1*d);
