@@ -101,11 +101,13 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   % real_colonies = load(points_filename);
   % Loading the simulated colonies (multicolumn data: ID, X, Y, SIM_ID
   colonies = load(colonies_filename);
+  
+  % TODO: retrieve the index on non-empty simulation IDs. Expected range 1-100
   scatter(colonies(:,1),colonies(:,2),20,'y',"filled");
   
   color_list = ['b' 'g' 'k' 'c'];           % discrete color list for transect segments
   
-  % TODO: improve sampling method. Starting points along all the shape window can produce
+  % DONE: improve sampling method. Starting points along all the shape window can produce
   % partially invalid transects, as part of them may fall outside the shape window.
   % In order to fix this, we must compute the maximum size of the starting point of
   % each transect. This is specially valid for colinear transects. In standard AGGRA
@@ -164,7 +166,7 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   % range according to the segment_width
 
   % we must scale sampling vector in V direction according to the seedAreaLength/windowLength ratio
-  sampling_points_uv(:,2)= sampling_points_uv(:,2) * seedAreaLength/windowLength; %TODO
+  sampling_points_uv(:,2)= sampling_points_uv(:,2) * seedAreaLength/windowLength; 
   %sampling_points_uv(:,2)=[0.0:1/N_TRANSECTS:1.0];
 
   %sampling_points_uv
@@ -177,8 +179,6 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   
   for i=1:N_TRANSECTS
     
-%    covered_length = sampling_points_uv(i,2) * transectLength
-%    covered_length = sampling_points_uv(i,2) * windowLength; % TODO: cambiar a seedAreaLength
     % First, we seek in which region it falls
     current_region = sum (norm_acum_length < sampling_points_uv(i,2)) + 1; % so far, it works
 
@@ -199,7 +199,7 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
 
     scatter (pointXY(1), pointXY(2), 15,'k',"filled")
     
-    % now we iterate for each transect segment (TODO: matrix!!!)
+    % now we iterate for each transect segment
     % If TRANSECT_TYPE == TYPE_AGGRA then we may not need to separate each segment, as we already have a templateAGRRA1
     % However, we can force every implementation as an iterated one, so we have a single model.
     % For PARALLEL model, all pivot/seed points will share the same segment/orientation
@@ -223,7 +223,7 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
         sampling_point = sampling_points_uv(i,:);
         sampling_point(2) = sampling_point(2) + fwd_length;
         temp = sum (norm_acum_length < sampling_point(2)) + 1;
-        new_region = min([K temp]); % so far, it works
+        new_region = min([K temp]); % so far, it works. We added min for border case when exceeds end limit
 
         % Second, we compute the UV coordinates in the current_region UV local system.
         norm_excess_length = sampling_point(2) - norm_acum_length(new_region) + norm_segment_length(new_region);
@@ -252,6 +252,7 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
       scatter(colonies(in,1),colonies(in,2),15,'r',"filled");
 
       % Account those inside the sampling polygon
+      % TODO: Separate according to the simulation ID
       sampled_colonies = sum (in);
       total_sampled_colonies = total_sampled_colonies + sampled_colonies;      
     end  
