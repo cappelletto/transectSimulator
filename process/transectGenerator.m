@@ -1,5 +1,9 @@
 % Based on https://octave.sourceforge.io/octave/function/inpolygon.html sample code
 
+% INFO: Data will be exported with S rows and N columns
+% INFO: S: The number of non-empty simulations of colonies (up to 100)
+% INFO: N: will be the number of transects (N_TRANSECTS)
+
 % TODO: Export only non-NULL entries for simulations (instead of filling with ZEROES)
 % TODO: Create bool ON/OFF entry list to check which must be exported
 % TODO: Current UV mapping approach may tend to produce out-of-bound colony seeds as the segment
@@ -8,7 +12,7 @@
 % shape_filename: file containing polygon as a closed loop: A-B-C-D-E-F-A
 % points_filename: file containing X-Y coordinates of real colonies 
 % shape_filename: file containing X-Y coordinates of simulated colonies
-function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANSECTS = 10, TEMPLATE_PARAMS, TRANSECT_TYPE)
+function [output_data] = transectGenerator(shape_filename, colonies_filename, N_TRANSECTS = 10, TEMPLATE_PARAMS, TRANSECT_TYPE)
   %------------------------------------------------
   %- Transect shape polygon loading
   %------------------------------------------------
@@ -102,7 +106,13 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   % Loading the simulated colonies (multicolumn data: ID, X, Y, SIM_ID
   colonies = load(colonies_filename);
   
-  % TODO: retrieve the index on non-empty simulation IDs. Expected range 1-100
+  % DONE: retrieve the index on non-empty simulation IDs. Expected range 1-100
+  % After loading the colonies data, we must retrieve the list of existent simulation IDs
+  % as non-repeated entries from colonies(:,3)
+  suma = sum(colonies(:,3) == [1:100]);
+  _idx = find(suma);
+  N_SIMULATIONS = size(_idx)(2)  % we get the number of unique simulation IDs
+  
   scatter(colonies(:,1),colonies(:,2),20,'y',"filled");
   
   color_list = ['b' 'g' 'k' 'c'];           % discrete color list for transect segments
@@ -171,11 +181,15 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
 
   %sampling_points_uv
   segment_length = segment_length';
-  norm_segment_length = segment_length / windowLength
-  norm_acum_length = acum_segment_length / windowLength
+  norm_segment_length = segment_length / windowLength;
+  norm_acum_length = acum_segment_length / windowLength;
 
   % Here we correct the length, orientation and region assigned to each sampling point
   % We can model each transect segment as a new sampling point, so they will be treated in the same way
+  
+  % Creating empty container for resulting samplings. As many rows as SIMULATIONS, and columns as
+  % TRANSECTS + 1. The additional (first) column as a container to the unique SIMULATION IDs
+  output_data = zeros(N_SIMULATIONS, 1 + N_TRANSECTS);
   
   for i=1:N_TRANSECTS
     
@@ -204,7 +218,7 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
     % However, we can force every implementation as an iterated one, so we have a single model.
     % For PARALLEL model, all pivot/seed points will share the same segment/orientation
     % For SERIES models, each segment must be checked against all regions
-    total_sampled_colonies = 0; % Reset the accumulator
+    total_sampled_colonies = zeros(N_SIMULATIONS,1); % Reset the accumulator
     for j=1:N_SEGMENTS
 
       if (TRANSECT_TYPE==TYPE_AGGRA)
@@ -250,16 +264,20 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
       % Check which colonies fall inside the transect. We are dismissing those falling in the border 
       [in, on] = inpolygon(colonies(:,1), colonies(:,2), base(:,1), base(:,2));
       scatter(colonies(in,1),colonies(in,2),15,'r',"filled");
+      % we mask only those sampled colonies 
+      masked_colonies = colonies(:,3) .* in;
+      temp = sum(_idx == masked_colonies);
+      %temp = sum(temp);
 
       % Account those inside the sampling polygon
       % TODO: Separate according to the simulation ID
-      sampled_colonies = sum (in);
-      total_sampled_colonies = total_sampled_colonies + sampled_colonies;      
+      total_sampled_colonies = total_sampled_colonies + temp';
     end  
-    
+    output_data(:,i + 1) = total_sampled_colonies;
   end
-  
-  
+  % Finally we prepend the SIM ID to the first column
+  output_data (:,1) = _idx;
+  % And return the data
   return %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % ----------------------------------------------------------------------------
 % At this point we have a vector of sampling points with their coordinates and target region
