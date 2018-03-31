@@ -17,7 +17,7 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   WIDTH = TEMPLATE_PARAMS(1)
   LENGTH = TEMPLATE_PARAMS(2)
   SKIP = TEMPLATE_PARAMS(3)
-  N_SEGMENTS = 8  % Number of segments of the transect pattern
+  N_SEGMENTS = 4  % Number of segments of the transect pattern
 
   TYPE_AGGRA = 0;
   TYPE_SERIES = 1;
@@ -101,7 +101,6 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
   % real_colonies = load(points_filename);
   % Loading the simulated colonies (multicolumn data: ID, X, Y, SIM_ID
   colonies = load(colonies_filename);
-  
   scatter(colonies(:,1),colonies(:,2),20,'y',"filled");
   
   color_list = ['b' 'g' 'k' 'c'];           % discrete color list for transect segments
@@ -205,30 +204,58 @@ function [output] = transectGenerator(shape_filename, colonies_filename, N_TRANS
     % However, we can force every implementation as an iterated one, so we have a single model.
     % For PARALLEL model, all pivot/seed points will share the same segment/orientation
     % For SERIES models, each segment must be checked against all regions
+    total_sampled_colonies = 0; % Reset the accumulator
     for j=1:N_SEGMENTS
+
       if (TRANSECT_TYPE==TYPE_AGGRA)
         % if AGGRA then are parallel, then the total length is LENGTH
         base = baseTransect(WIDTH,LENGTH);
-%        base = templateAGRRA1(WIDTH, LENGTH,SKIP);
         base = traslatePolygon (base, [0 SKIP*(j-(N_SEGMENTS)/2 - 0.5) ] );
+        base = rotatePolygon (base, v(current_region,:));
         base = traslatePolygon (base, pointXY);
-
         plot (base(:,1),base(:,2))
+        
       else
         % if non-AGGRA: SERIES; then the total length is 4*L + 3*S
-        base = baseTransect(WIDTH,LENGTH);
         % d: displacement vector among contiguous transects
-        d = [LENGTH + SKIP, 0];
-        % From the base polygon, we create 2 on each side, by traslation in Y axis
-        t1 = traslatePolygon (base, 0*d);
-        t2 = traslatePolygon (base, 1*d);
-        t3 = traslatePolygon (base, 2*d);
-        t4 = traslatePolygon (base, 3*d);
-        template = [t1; t2; t3; t4];
+        base = baseTransect(WIDTH,LENGTH);        
+        fwd_length = (j-1)*(LENGTH+SKIP)/windowLength;
+        sampling_point = sampling_points_uv(i,:);
+        sampling_point(2) = sampling_point(2) + fwd_length;
+        temp = sum (norm_acum_length < sampling_point(2)) + 1;
+        new_region = min([K temp]); % so far, it works
+
+        % Second, we compute the UV coordinates in the current_region UV local system.
+        norm_excess_length = sampling_point(2) - norm_acum_length(new_region) + norm_segment_length(new_region);
+        norm_excess_length = norm_excess_length/norm_segment_length(new_region);
+        
+        % Third, we remap local UV to global XY
+        % For this, we start from pivot corner C
+        pointXY = cornerC(new_region,:);
+        
+        %BUG: I have no clue why I can't do this as a direct sum*product
+        pointXY(1) = pointXY(1) + sampling_point(1)*uu(new_region,1);
+        pointXY(2) = pointXY(2) + sampling_point(1)*uu(new_region,2);
+
+        pointXY(1) = pointXY(1) + norm_excess_length*vv(new_region,1);
+        pointXY(2) = pointXY(2) + norm_excess_length*vv(new_region,2);
+
+        scatter (pointXY(1), pointXY(2), 12,'b',"filled")
+
+        base = rotatePolygon (base, v(new_region,:));
+        base = traslatePolygon (base, pointXY);
+        plot (base(:,1),base(:,2))
         
       end
-    end  
+      % Check which colonies fall inside the transect. We are dismissing those falling in the border 
+      [in, on] = inpolygon(colonies(:,1), colonies(:,2), base(:,1), base(:,2));
+      scatter(colonies(in,1),colonies(in,2),15,'r',"filled");
 
+      % Account those inside the sampling polygon
+      sampled_colonies = sum (in);
+      total_sampled_colonies = total_sampled_colonies + sampled_colonies;      
+    end  
+    
   end
   
   
