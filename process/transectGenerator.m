@@ -12,7 +12,7 @@
 % shape_filename: file containing polygon as a closed loop: A-B-C-D-E-F-A
 % points_filename: file containing X-Y coordinates of real colonies 
 % shape_filename: file containing X-Y coordinates of simulated colonies
-function [output_data] = transectGenerator(shape_filename, colonies_filename, N_TRANSECTS = 10, TEMPLATE_PARAMS, TRANSECT_TYPE)
+function [output_data] = transectGenerator(shape_filename, colonies_filename, N_TRANSECTS = 10, TEMPLATE_PARAMS, TRANSECT_TYPE, MORTALITY_RATE = 0)
   %------------------------------------------------
   %- Transect shape polygon loading
   %------------------------------------------------
@@ -22,7 +22,8 @@ function [output_data] = transectGenerator(shape_filename, colonies_filename, N_
   LENGTH = TEMPLATE_PARAMS(2)
   SKIP = TEMPLATE_PARAMS(3)
   N_SEGMENTS = 4  % Number of segments of the transect pattern
-
+  MORTALITY_RATE  % simulated colonies morality rate
+  
   TYPE_AGGRA = 0;
   TYPE_SERIES = 1;
 
@@ -105,6 +106,11 @@ function [output_data] = transectGenerator(shape_filename, colonies_filename, N_
   % real_colonies = load(points_filename);
   % Loading the simulated colonies (multicolumn data: ID, X, Y, SIM_ID
   colonies = load(colonies_filename);
+
+  % after loading the colonies, we must remove N colonies to simulate a MORTALITY_RATE
+  % of the total population. Individuals are uniformly sampled for removal.
+  i = ceil (size(colonies)(1) * (MORTALITY_RATE)/100);
+  % Now, we remove 'i' random colonies out of the total population
   
   % DONE: retrieve the index on non-empty simulation IDs. Expected range 1-100
   % After loading the colonies data, we must retrieve the list of existent simulation IDs
