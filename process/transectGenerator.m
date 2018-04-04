@@ -106,11 +106,16 @@ function [output_data] = transectGenerator(shape_filename, colonies_filename, N_
   % real_colonies = load(points_filename);
   % Loading the simulated colonies (multicolumn data: ID, X, Y, SIM_ID
   colonies = load(colonies_filename);
-
+  n_colonies = size(colonies)(1);
   % after loading the colonies, we must remove N colonies to simulate a MORTALITY_RATE
   % of the total population. Individuals are uniformly sampled for removal.
-  i = ceil (size(colonies)(1) * (MORTALITY_RATE)/100);
+  i = ceil (n_colonies * (MORTALITY_RATE)/100);
   % Now, we remove 'i' random colonies out of the total population
+  % Obtain a random list with 'i' elements from 'n_colonies'. These colonies will be flaged for removal
+  remove_idx = randperm (n_colonies, i);
+  
+  % For colony removal, we simply change its SIMULATION_ID to a non valid number
+  colonies(remove_idx,3) = -1;
   
   % DONE: retrieve the index on non-empty simulation IDs. Expected range 1-100
   % After loading the colonies data, we must retrieve the list of existent simulation IDs
