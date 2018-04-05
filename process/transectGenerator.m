@@ -1,5 +1,3 @@
-% Based on https://octave.sourceforge.io/octave/function/inpolygon.html sample code
-
 % INFO: Data will be exported with S rows and N columns
 % INFO: S: The number of non-empty simulations of colonies (up to 100)
 % INFO: N: will be the number of transects (N_TRANSECTS)
@@ -12,7 +10,7 @@
 % shape_filename: file containing polygon as a closed loop: A-B-C-D-E-F-A
 % points_filename: file containing X-Y coordinates of real colonies 
 % shape_filename: file containing X-Y coordinates of simulated colonies
-function [output_data] = transectGenerator(shape_filename, colonies_filename, N_TRANSECTS = 10, TEMPLATE_PARAMS, TRANSECT_TYPE, MORTALITY_RATE = 0)
+function [output_data] = transectGenerator(shape_filename, colonies_filename, N_TRANSECTS, TEMPLATE_PARAMS, TRANSECT_TYPE, MORTALITY_RATE = 0)
   %------------------------------------------------
   %- Transect shape polygon loading
   %------------------------------------------------
@@ -21,7 +19,7 @@ function [output_data] = transectGenerator(shape_filename, colonies_filename, N_
   WIDTH = TEMPLATE_PARAMS(1)
   LENGTH = TEMPLATE_PARAMS(2)
   SKIP = TEMPLATE_PARAMS(3)
-  N_SEGMENTS = 4  % Number of segments of the transect pattern
+  N_SEGMENTS = TEMPLATE_PARAMS(4)  % Number of segments of the transect pattern
   MORTALITY_RATE  % simulated colonies morality rate
   
   TYPE_AGGRA = 0;
