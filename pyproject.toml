@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "transect-sampler-poc"
+version = "0.1.0"
+description = "A small, explicit transect sampling prototype for spatial point distributions"
+requires-python = ">=3.10"
+
+[project.scripts]
+transect-sampler = "transect_sampler.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

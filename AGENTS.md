@@ -2,13 +2,15 @@
 
 ## Current project phase
 
-This repository is currently in an **analysis and description** phase. The next planned phase is preparation of a migration, but migration work is not yet in scope.
+The historical Octave implementation has been assessed. A separate Python sampler proof of concept is now in scope at the user's request; a full migration and statistical analysis remain future work. See `docs/python_prototype.md` for its contract and limits.
+
+The pre-refactor decision is to use GeoJSON for file based spatial interchange and QGIS visualization. The prototype CLI currently uses application-specific JSON. Keep metric Euclidean sampling in a verified projected CRS; implement GeoJSON reprojection at an adapter boundary. `docs/python_prototype.md` records the evidence, field naming convention, and remaining work.
 
 When working in the current phase:
 
 - Preserve the behavior, input data, and committed results unless a task explicitly requests a change.
 - Prefer evidence-backed documentation, inventory, reproducibility checks, and characterization tests.
-- Do not redesign, port, normalize datasets, or silently correct scientific behavior yet.
+- Keep the Octave implementation and committed datasets intact while developing the isolated Python prototype. Do not silently change scientific behavior.
 - Record ambiguities and suspected defects separately from confirmed behavior.
 - No GitHub issue exists for this assessment. Do not create one unless explicitly requested.
 
@@ -44,7 +46,7 @@ The PDF is a high-level requirements record, not proof that every described outp
 - `process/results/Tests01/`: batch outputs for six sites, three designs, and mortality rates 0, 10, 20, 30, and 40 percent.
 - `process/results/Tests01/_automate.sh`: historical in-place output formatting script; it is not the simulation driver.
 
-There is currently no dependency manifest, automated test suite, README, continuous-integration configuration, or declared license.
+The historical Octave implementation has no dependency manifest or automated test suite. The Python prototype has `pyproject.toml` and a README. There is currently no continuous-integration configuration or declared license.
 
 ## Implemented data flow
 

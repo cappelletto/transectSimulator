@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "kind": "points",
+  "distribution_id": "example-colonies",
+  "realization_id": "snapshot-1",
+  "crs": "LOCAL:METRES",
+  "units": "m",
+  "points": [
+    {"id": "c1", "x_m": 2, "y_m": 0, "attributes": {"species": "example"}},
+    {"id": "c2", "x_m": 7, "y_m": 0.4},
+    {"id": "c3", "x_m": 7, "y_m": 2}
+  ]
+}
