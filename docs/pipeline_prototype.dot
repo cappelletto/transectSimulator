@@ -1,0 +1,73 @@
+digraph TransectPipeline {
+  graph [
+    rankdir=TB,
+    bgcolor="white",
+    pad="0.28",
+    nodesep="0.48",
+    ranksep="0.48",
+    fontname="DejaVu Sans",
+    label="Transect pipeline prototype  |  solid = implemented, dashed = planned",
+    labelloc=t,
+    fontsize=18,
+    fontcolor="#17243a",
+    compound=true
+  ];
+  node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=11,
+        color="#9db0c8", fillcolor="#f7faff", fontcolor="#17243a", margin="0.14,0.09"];
+  edge [color="#42668e", arrowsize=0.7, penwidth=1.4, fontname="DejaVu Sans",
+        fontsize=9, fontcolor="#52657d"];
+
+  subgraph cluster_upstream {
+    label="Future upstream modules";
+    style="rounded,dashed";
+    color="#81a9a1";
+    fontcolor="#32766b";
+    source [label="Empirical data or\nanalytical pattern", color="#81a9a1", fillcolor="#eef8f5"];
+    evolution [label="Temporal evolution\nmortality / fragmentation", color="#81a9a1", fillcolor="#eef8f5"];
+    placement [label="Sampling design\nand placement", color="#81a9a1", fillcolor="#eef8f5"];
+    source -> evolution [style=dashed, color="#70a497"];
+  }
+
+  subgraph cluster_current {
+    label="Current Python sampler POC  |  one explicit sampling job";
+    style="rounded,filled";
+    color="#6b9ad1";
+    fillcolor="#f1f6fc";
+    fontcolor="#21537e";
+
+    point_file [label="Point distribution\napplication JSON", shape=note, fillcolor="#ffffff"];
+    transect_file [label="Transect set\napplication JSON", shape=note, fillcolor="#ffffff"];
+    point_model [label="PointDistribution\nIDs + projected x_m, y_m", fillcolor="#dfeeff"];
+    request_model [label="SamplingRequest\nlength_m, width_m, angle_deg", fillcolor="#dfeeff"];
+    sample [label="sample()\nmatch CRS and metre units", fillcolor="#bcdcf7", color="#397fbc", penwidth=1.7];
+    geometry [label="observe_points()\nEuclidean rectangle test\nper transect", fillcolor="#bcdcf7", color="#397fbc", penwidth=1.7];
+    hits [label="Observation records\npoint ID + transect ID\nalong_m + offset_m", fillcolor="#dfeeff"];
+    result_file [label="Observation result\napplication JSON", shape=note, fillcolor="#ffffff"];
+
+    {rank=same; point_file; transect_file;}
+    {rank=same; point_model; request_model;}
+    point_file -> point_model [label="load"];
+    transect_file -> request_model [label="load"];
+    point_model -> sample;
+    request_model -> sample;
+    sample -> geometry;
+    geometry -> hits [label="one per encounter"];
+    hits -> result_file [label="serialize"];
+  }
+
+  subgraph cluster_downstream {
+    label="Planned analysis and QGIS handoff";
+    style="rounded,dashed";
+    color="#81a9a1";
+    fontcolor="#32766b";
+    summaries [label="Per-transect and run\nsummary counts", color="#81a9a1", fillcolor="#eef8f5"];
+    gis [label="GeoJSON layers\ncolonies / footprints / hits", color="#81a9a1", fillcolor="#eef8f5"];
+    qgis [label="QGIS visualization", color="#81a9a1", fillcolor="#eef8f5"];
+    gis -> qgis [style=dashed, color="#70a497"];
+  }
+
+  evolution -> point_file [style=dashed, color="#70a497", label="realization adapter"];
+  placement -> transect_file [style=dashed, color="#70a497", label="placed design"];
+  hits -> summaries [style=dashed, color="#70a497"];
+  result_file -> gis [style=dashed, color="#70a497", label="CRS adapter / export"];
+}

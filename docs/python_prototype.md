@@ -1,5 +1,10 @@
 # Python transect sampler proof of concept
 
+![Current sampler and planned pipeline modules](pipeline_prototype.svg)
+
+The diagram source is [`pipeline_prototype.dot`](pipeline_prototype.dot). Solid arrows show the working Python proof of concept; dashed arrows show planned modules and exports.
+Regenerate the SVG with `dot -Tsvg docs/pipeline_prototype.dot -o docs/pipeline_prototype.svg`.
+
 ## 1. Overall pipeline
 
 ```text
@@ -53,10 +58,26 @@ This is a new implementation boundary, not a port of `process/transectGenerator.
 - Operational Python fields use `x_m`, `y_m`, `start_x_m`, `start_y_m`, `length_m`, `width_m`, `along_m`, `offset_m`, and `angle_deg`. This makes units visible at the API and JSON boundary. The `_m` coordinates are easting/northing or local Cartesian coordinates, never GeoJSON longitude/latitude. The synthetic `LOCAL:METRES` examples have no geographic location and cannot be reprojected into standard GeoJSON.
 - The original `data/original/window_260.qpj` declares REGVEN / UTM zone 19N (`EPSG:2202`). Treat this as evidence for that source shapefile, not automatic CRS metadata for every CSV or simplified polygon. Confirm the CRS of each historical input before import.
 - Standard [GeoJSON (RFC 7946)](https://www.rfc-editor.org/rfc/rfc7946#section-4) uses WGS 84 longitude/latitude in degrees. The planned adapter must transform GeoJSON geometry into a verified local projected CRS before sampling and transform spatial results back for export. It must reject unavailable or ambiguous transformations rather than interpreting degrees as metres. Geometry should remain the source of spatial position; stable IDs and experiment metadata belong in feature properties and the run manifest.
-- Proposed files per job: colony realization as Point GeoJSON, transect centerlines as LineString GeoJSON with `width_m` and IDs, observations as Point GeoJSON with `point_id` and `transect_id`, and optional derived transect footprints as Polygon GeoJSON for QGIS. Keep the transect layer even when it has zero hits. A manifest records schema version, source/working/export CRS, realization ID, sampling ID, transformation details, and file names. This is a design target, not implemented I/O.
+- Proposed input files: colony realization as Point GeoJSON and transect centerlines as LineString GeoJSON with `width_m` and IDs. The MVP outputs observed Point features and derived transect footprint Polygons for QGIS. Keep the footprint layer even when it has zero hits. A manifest records schema version, source/working/export CRS, realization ID, sampling ID, transformation details, and file names. This is a design target, not implemented I/O.
 - GeoJSON is chosen over Shapefile for this interface because [Shapefile attribute names are limited to ten characters](https://gdal.org/en/stable/drivers/vector/shapefile.html). File based CSV and historical Shapefiles remain import sources; no database format is planned. Confirm GeoJSON round-trip fidelity, precision, IDs, properties, and QGIS rendering with a small fixture before bulk conversion.
 
-## 5. Follow-up actions
+## 5. MVP feature: inspect one sampling run in QGIS
+
+Provide a CLI command that accepts one colony realization and one explicitly placed transect set, runs the metric sampler once, and writes a self-contained output directory. This is a planned feature; the current CLI writes only application-specific observation JSON.
+
+Minimum artifacts per run:
+
+| File | Contents | QGIS use |
+| --- | --- | --- |
+| `colonies.geojson` | Input realization as Point features with stable `point_id` | Show the sampled population |
+| `transects.geojson` | Derived rectangular Polygon features with `transect_id` and `hit_count`; include zero-hit transects | Display sampling footprints and color by count |
+| `observations.geojson` | One Point feature per transect–colony encounter with both IDs and `along_m`/`offset_m` | Inspect detected colonies and overlap |
+| `summary.json` | Per-transect hit counts, total encounters, and distinct colonies across the run | Read results without GIS; feed later statistics |
+| `manifest.json` | Schema version, source and working CRS, transformations, realization and sampling IDs, parameters, and artifact names | Reproduce and interpret the run |
+
+GeoJSON geometries must be exported in WGS 84 longitude/latitude; the sampler computes footprints and hits in the verified projected metre CRS. Keep raw point IDs as string properties and give encounter features distinct IDs so overlapping transects remain visible. `hit_count` counts encounters in each transect; the run total counts all encounters, while the distinct-colony total deduplicates point IDs across transects. These are descriptive counts, not detection probabilities. A useful acceptance check is to open the three GeoJSON files together in QGIS, see every transect including zero-hit cases, identify each observed colony by both IDs, and reconcile polygon counts with `summary.json` and the raw observations. The MVP needs no in-app map or database.
+
+## 6. Follow-up actions
 
 1. Define the scientific observation rule for colony footprints, partial intersection, cover, visibility, and points on boundaries. Add geometry adapters and a numerical tolerance policy as needed.
 2. Add a sampling design/placement module: explicit placements first, then seeded random placement subject to the chosen window and clipping rules. Keep random state and seeds in experiment metadata.
@@ -65,3 +86,4 @@ This is a new implementation boundary, not a port of `process/transectGenerator.
 5. Add a summary module for counts, unique detections, detection probability, uncertainty, and fair comparisons across designs, after the statistical estimand is agreed.
 6. Expand unit and integration tests for rotations, boundaries, overlaps, zero hits, malformed data, CRS mismatches, GeoJSON reprojection and round trips, importer behavior, and synthetic analytical cases. Compare selected outputs with Octave only after deciding which legacy semantics to preserve.
 7. Document the GeoJSON and manifest schemas, coordinate conventions, installation, reproducible batch orchestration, and future API behavior. Add an experiment runner if data volume warrants it.
+8. Deliver the QGIS inspection MVP above with a CLI output-directory option and a small georeferenced fixture. Verify exported geometries, CRS, IDs, zero-hit features, and summaries by opening the artifacts in QGIS.
