@@ -1,6 +1,7 @@
-% INFO: Data will be exported with S rows and N columns
+% INFO: Data will be exported with S rows and N_TRANSECTS + 2 columns
 % INFO: S: The number of non-empty simulations of colonies (up to 100)
-% INFO: N: will be the number of transects (N_TRANSECTS)
+% INFO: Column 1 is the simulation ID; columns 2 through N_TRANSECTS + 1
+% are sampled counts; the final column is the surviving colony total for that ID.
 
 % TODO: Export only non-NULL entries for simulations (instead of filling with ZEROES)
 % TODO: Create bool ON/OFF entry list to check which must be exported
@@ -196,9 +197,8 @@ function [output_data] = transectGenerator(shape_filename, colonies_filename, N_
   % Here we correct the length, orientation and region assigned to each sampling point
   % We can model each transect segment as a new sampling point, so they will be treated in the same way
   
-  % Creating empty container for resulting samplings. As many rows as SIMULATIONS, and columns as
-  % TRANSECTS + 1. The additional (first) column as a container to the unique SIMULATION IDs
-  output_data = zeros(N_SIMULATIONS, 1 + N_TRANSECTS);
+  % One simulation per row: ID, sampled counts, and total surviving colonies.
+  output_data = zeros(N_SIMULATIONS, N_TRANSECTS + 2);
   
   for i=1:N_TRANSECTS
     
@@ -286,6 +286,8 @@ function [output_data] = transectGenerator(shape_filename, colonies_filename, N_
   end
   % Finally we prepend the SIM ID to the first column
   output_data (:,1) = _idx;
+  % suma was computed after mortality removal; its entries match the surviving IDs.
+  output_data (:,N_TRANSECTS + 2) = suma(_idx)';
   % And return the data
   return %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % ----------------------------------------------------------------------------
