@@ -5,7 +5,10 @@
 % SITE_NAMES: array of site names as strings to be used as prefix for output files
 % MORTALITY_RATES: array of desired mortality rates to be tested
 
-% eacch iteration is saved to disk with the following name convention
+% Each iteration is saved as comma-delimited integer CSV with a header.
+% Columns: simulation_id, placement_1 ... placement_N, total_colonies.
+% Each placement column counts colonies across the complete transect set.
+% Files use the following name convention:
 % $SITE_NAME_$TYPE$LENGTH_M$MORTALITY_RATES.csv
 % Example: COTE_S20_M10.csv
 % Output for COTE, with transect type: SERIES, lenght: 20 m and mortality rate 10 percent
@@ -33,7 +36,22 @@ function [info] = batchProcess(TEST_PARAMS, NUMBER_TRANSECTS, SITE_NAMES, MORTAL
       for k=1:total_rates
         output_name = sprintf("%s_%s%d_M%d.csv",SITE_NAMES(j,:), test_type_string(transect_type+1), transect_length, MORTALITY_RATES(k)) 
         data = transectGenerator(input_shape, input_sim, NUMBER_TRANSECTS, params, transect_type, MORTALITY_RATES(k));
-        save ("-ascii", output_name, "data")
+        if (any(~isfinite(data(:))) || any(data(:) != fix(data(:))))
+          error("Output must contain finite integer counts and simulation IDs");
+        endif
+
+        fid = fopen(output_name, "w");
+        if (fid < 0)
+          error("Could not open output file: %s", output_name);
+        endif
+        fprintf(fid, "simulation_id");
+        for placement=1:NUMBER_TRANSECTS
+          fprintf(fid, ",placement_%d", placement);
+        endfor
+        fprintf(fid, ",total_colonies\n");
+        row_format = ["%d" repmat(",%d", 1, columns(data)-1) "\n"];
+        fprintf(fid, row_format, data');
+        fclose(fid);
 % out = transectGenerator('../data/Shape/FARO_SHP.txt' , '../data/Sim_FARO.csv', 3, paramP10, 0 , 10);        
         
       end      
