@@ -36,7 +36,7 @@ The PDF is a high-level requirements record, not proof that every described outp
 
 - `process/transectGenerator.m`: core random placement, geometry, mortality filtering, point-in-polygon counting, plotting, and matrix assembly.
 - `process/stripPolygon.m`: converts a specially ordered strip polygon into a sequence of quadrilateral index sets.
-- `process/batchProcess.m`: loops over designs, sites, and mortality rates and saves ASCII matrices.
+- `process/batchProcess.m`: loops over designs, sites, and mortality rates and saves comma-delimited integer CSV files with headers.
 - `data/Shape/*_SHP.txt`: simplified two-column window boundaries used by the implementation.
 - `data/Sim_*.csv`: three comma-separated columns: X, Y, simulation ID. Each file currently contains IDs 1 through 100.
 - `data/points_*.csv`: two comma-separated columns containing observed colony X and Y coordinates.
@@ -68,7 +68,9 @@ At a high level, the function:
 
 The committed batch results normally have 100 rows and 101 columns: one simulation-ID column plus 100 random placements. This wide matrix is information-equivalent to part of the requested long-form result, but it is not the 10,000-row `simulation x transect placement x count` format illustrated in the PDF.
 
-`batchProcess(TEST_PARAMS, NUMBER_TRANSECTS, SITE_NAMES, MORTALITY_RATES)` calls the generator for each parameter combination and writes a file named `<SITE>_<P|S><LENGTH>_M<MORTALITY>.csv` in the current working directory. Historical usage appears to have run it from `process/results/Tests01`, because its input paths are relative to that location.
+`batchProcess(TEST_PARAMS, NUMBER_TRANSECTS, SITE_NAMES, MORTALITY_RATES)` calls the generator for each parameter combination and writes a file named `<SITE>_<P|S><LENGTH>_M<MORTALITY>.csv` in the current working directory. Run it from `process/` or a working directory whose `../data/` resolves to the intended inputs; its paths are relative to the working directory.
+
+New batch exports have columns `simulation_id,placement_1,...,placement_N,total_colonies`; `N` is `NUMBER_TRANSECTS`. The historical committed result files retain their older whitespace-delimited, headerless format.
 
 ## Geometry assumptions
 
@@ -104,7 +106,7 @@ The code does not read the committed shapefile directly, inspect CRS metadata, v
 - Component rectangles are tested directly with `inpolygon`, but they are not clipped against the reef window. A colony inside a rectangle is counted regardless of whether a portion of that rectangle lies outside the window; because colonies are expected to lie within the window this may approximate the desired count, but sampled area is not calculated.
 - Boundary points returned by `inpolygon` as `on` are not separately excluded despite the nearby comment; `in` includes points on the boundary in MATLAB/Octave semantics.
 - Plotting and console output are embedded in the computational function, making headless batch execution and performance control difficult.
-- File paths depend on the caller's working directory, output metadata are encoded only in filenames, and saved files have no headers.
+- File paths depend on the caller's working directory, and most output metadata are encoded only in filenames. Historical committed results are headerless; new batch exports include column headers.
 - Input validation is absent for file shape, polygon ordering, parameter ranges, negative seed area, expected simulation IDs, and degenerate regions.
 - Several comments are stale or inconsistent with the files, including a statement that simulated data contain an explicit row ID. Current simulation files contain only X, Y, and simulation ID.
 - `unifrnd` introduces an Octave Statistics Package/MATLAB Statistics and Machine Learning Toolbox dependency that is not declared or loaded by the repository.
@@ -139,7 +141,7 @@ Use history to distinguish intentional legacy behavior from accidental regressio
 
 ## Working and verification guidance
 
-- Run Octave commands from `process/` only when their relative input/output paths have been checked. `batchProcess` may need to run from its historical result directory or be given a controlled working directory.
+- Run `batchProcess` from `process/` or a controlled directory with the expected `../data/` inputs. Check the working directory and target filenames before generating outputs.
 - Load the Statistics package before calling `transectGenerator` if the runtime requires it: `pkg load statistics`.
 - Avoid overwriting committed result files during exploratory runs. Write to a temporary or explicitly named characterization directory.
 - Fix the random seed when creating characterization fixtures and record the Octave/MATLAB version and package versions.
