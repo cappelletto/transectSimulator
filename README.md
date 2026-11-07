@@ -2,6 +2,8 @@
 
 This repository contains the historical Octave implementation in `process/` and a separate Python proof of concept in `src/transect_sampler/`. The Python package queries an already specified point distribution with one or more explicitly placed rectangular transects and returns individual observations. See [the prototype design](docs/python_prototype.md) for the pipeline, schemas, semantics, and follow-up work.
 
+For the functional Octave batch scripts, see the [parameter and input reference](docs/octave_parameters.md), including the distinction between placement count and component transect count.
+
 The [pipeline diagram](docs/pipeline_prototype.svg) highlights the implemented sampler and the planned upstream and QGIS modules.
 
 GeoJSON is the selected spatial interchange format for the planned QGIS companion workflow. The current CLI still uses its prototype JSON schema; the GeoJSON adapter and CRS transformation are follow-up work documented in the prototype design.

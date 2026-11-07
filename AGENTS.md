@@ -50,9 +50,11 @@ The historical Octave implementation has no dependency manifest or automated tes
 
 ## Implemented data flow
 
-`transectGenerator(shape_filename, colonies_filename, N_TRANSECTS, TEMPLATE_PARAMS, TRANSECT_TYPE, MORTALITY_RATE)` is the main entry point.
+See `docs/octave_parameters.md` for the exact batch argument mapping, input file contracts, working-directory requirements, and the distinction between placement and component counts.
 
-`TEMPLATE_PARAMS` is `[WIDTH, LENGTH, SKIP, N_SEGMENTS]`. `TRANSECT_TYPE` is `0` for the parallel AGRRA-style design and `1` for the collinear series design.
+`transectGenerator(window_filename, colonies_filename, N_TRANSECTS, DESIGN_PARAMS, TRANSECT_TYPE, MORTALITY_RATE)` is the main entry point.
+
+`DESIGN_PARAMS` is `[WIDTH, LENGTH, SPACING, N_SEGMENTS]`. `TRANSECT_TYPE` is `0` for the parallel AGRRA-style design and `1` for the collinear series design.
 
 At a high level, the function:
 
@@ -68,7 +70,7 @@ At a high level, the function:
 
 The committed batch results normally have 100 rows and 101 columns: one simulation-ID column plus 100 random placements. This wide matrix is information-equivalent to part of the requested long-form result, but it is not the 10,000-row `simulation x transect placement x count` format illustrated in the PDF.
 
-`batchProcess(TEST_PARAMS, NUMBER_TRANSECTS, SITE_NAMES, MORTALITY_RATES)` calls the generator for each parameter combination and writes a file named `<SITE>_<P|S><LENGTH>_M<MORTALITY>.csv` in the current working directory. Run it from `process/` or a working directory whose `../data/` resolves to the intended inputs; its paths are relative to the working directory.
+`batchProcess(DESIGN_CONFIGS, NUMBER_TRANSECTS, SITE_NAMES, MORTALITY_RATES)` calls the generator for each parameter combination and writes a file named `<SITE>_<P|S><LENGTH>_M<MORTALITY>.csv` in the current working directory. Run it from `process/` or a working directory whose `../data/` resolves to the intended inputs; its paths are relative to the working directory.
 
 New batch exports have columns `simulation_id,placement_1,...,placement_N,total_colonies`; `N` is `NUMBER_TRANSECTS`. The historical committed result files retain their older whitespace-delimited, headerless format.
 
@@ -101,7 +103,7 @@ The code does not read the committed shapefile directly, inspect CRS metadata, v
 - `data/points_*.csv` observed colonies are not accepted separately or used by the current main function. The current generator consumes the simulated-colony file only; observed-colony outputs in `results/AGGRA1` are historical artifacts.
 - Randomness is not seeded or exposed through an API, so a run cannot be reproduced from its output alone.
 - Mortality is sampled over all rows in a reef file, not independently at an exact rate within each simulation. A simulation ID vanishes if all of its colonies are removed. This is confirmed by committed mortality outputs with only 98 or 99 rows instead of 100.
-- Series seed-area length is hard-coded as `4 * LENGTH + 3 * SKIP`, even though iteration uses the configurable `N_SEGMENTS`. Values other than four are therefore inconsistent for series designs.
+- Series seed-area length is hard-coded as `4 * LENGTH + 3 * SPACING`, even though iteration uses the configurable `N_SEGMENTS`. Values other than four are therefore inconsistent for series designs.
 - Seed width is sampled from `[0, 0.95]` as a documented quick fix. Longitudinal seed placement is restricted so the modeled design fits within the total strip length. This does not directly implement the source brief's statement that partially out-of-window transects may be acceptable and only intersecting colonies matter.
 - Component rectangles are tested directly with `inpolygon`, but they are not clipped against the reef window. A colony inside a rectangle is counted regardless of whether a portion of that rectangle lies outside the window; because colonies are expected to lie within the window this may approximate the desired count, but sampled area is not calculated.
 - Boundary points returned by `inpolygon` as `on` are not separately excluded despite the nearby comment; `in` includes points on the boundary in MATLAB/Octave semantics.

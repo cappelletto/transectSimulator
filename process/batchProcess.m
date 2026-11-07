@@ -1,7 +1,7 @@
 % batchProcess
 % Master batch processing script to automate parametrized test
 
-% TEST_PARAMS: array of PARAMS vecctor containing specific configuration of each test
+% DESIGN_CONFIGS: array of PARAMS vecctor containing specific configuration of each test
 % SITE_NAMES: array of site names as strings to be used as prefix for output files
 % MORTALITY_RATES: array of desired mortality rates to be tested
 
@@ -13,11 +13,11 @@
 % Example: COTE_S20_M10.csv
 % Output for COTE, with transect type: SERIES, lenght: 20 m and mortality rate 10 percent
 
-% the total number of outputs will be as many as entries of TEST_PARAMS * SITE_NAMES * MORTALITY_RATES
+% the total number of outputs will be as many as entries of DESIGN_CONFIGS * SITE_NAMES * MORTALITY_RATES
  
-function [info] = batchProcess(TEST_PARAMS, NUMBER_TRANSECTS, SITE_NAMES, MORTALITY_RATES)
-  total_tests = size(TEST_PARAMS)(1)
-  TEST_PARAMS
+function [info] = batchProcess(DESIGN_CONFIGS, NUMBER_TRANSECTS, SITE_NAMES, MORTALITY_RATES)
+  total_tests = size(DESIGN_CONFIGS)(1)
+  DESIGN_CONFIGS
   total_sites = size(SITE_NAMES)(1)
   SITE_NAMES
   total_rates = size (MORTALITY_RATES)(2)
@@ -27,9 +27,9 @@ function [info] = batchProcess(TEST_PARAMS, NUMBER_TRANSECTS, SITE_NAMES, MORTAL
   test_type_string = ["P" "S"];
   
   for i=1:total_tests
-    transect_type = TEST_PARAMS(i,5);
-    transect_length = TEST_PARAMS(i,2);
-    params = TEST_PARAMS(i,1:4)
+    transect_type = DESIGN_CONFIGS(i,5);
+    transect_length = DESIGN_CONFIGS(i,2);
+    params = DESIGN_CONFIGS(i,1:4)
     for j=1:total_sites
         input_shape = sprintf("../data/Shape/%s_SHP.txt", SITE_NAMES(j,:))
         input_sim = sprintf("../data/Sim_%s.csv", SITE_NAMES(j,:))

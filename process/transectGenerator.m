@@ -8,19 +8,19 @@
 % TODO: Current UV mapping approach may tend to produce out-of-bound colony seeds as the segment
 % polygons require 2D transformation using a 4-point correspondence
 
-% shape_filename: file containing polygon as a closed loop: A-B-C-D-E-F-A
+% window_filename: file containing polygon as a closed loop: A-B-C-D-E-F-A
 % points_filename: file containing X-Y coordinates of real colonies 
-% shape_filename: file containing X-Y coordinates of simulated colonies
-function [output_data] = transectGenerator(shape_filename, colonies_filename, N_TRANSECTS, TEMPLATE_PARAMS, TRANSECT_TYPE, MORTALITY_RATE = 0)
+% colonies_filename: file containing X-Y coordinates of simulated colonies
+function [output_data] = transectGenerator(window_filename, colonies_filename, N_TRANSECTS, DESIGN_PARAMS, TRANSECT_TYPE, MORTALITY_RATE = 0)
   %------------------------------------------------
   %- Transect shape polygon loading
   %------------------------------------------------
   % We print the input parameters in the console just for verification purposes
   N_TRANSECTS
-  WIDTH = TEMPLATE_PARAMS(1)
-  LENGTH = TEMPLATE_PARAMS(2)
-  SKIP = TEMPLATE_PARAMS(3)
-  N_SEGMENTS = TEMPLATE_PARAMS(4)  % Number of segments of the transect pattern
+  WIDTH = DESIGN_PARAMS(1)
+  LENGTH = DESIGN_PARAMS(2)
+  SPACING = DESIGN_PARAMS(3)
+  N_SEGMENTS = DESIGN_PARAMS(4)  % Number of segments of the transect pattern
   MORTALITY_RATE  % simulated colonies morality rate
   
   TYPE_AGGRA = 0;
@@ -33,7 +33,7 @@ function [output_data] = transectGenerator(shape_filename, colonies_filename, N_
   endif
  
   % Import file containing polygon description as a closed loop: A-B-C-D-E-F-A
-  polygon_shape = load (shape_filename);
+  polygon_shape = load (window_filename);
 
   % Number of vertex in the list must be odd (starting vertex is counted twice)
   % So we subtracts 1, and obtain the number of vertex
@@ -120,8 +120,8 @@ function [output_data] = transectGenerator(shape_filename, colonies_filename, N_
   % After loading the colonies data, we must retrieve the list of existent simulation IDs
   % as non-repeated entries from colonies(:,3)
   suma = sum(colonies(:,3) == [1:100]);
-  _idx = find(suma);
-  N_SIMULATIONS = size(_idx)(2)  % we get the number of unique simulation IDs
+  simulation_ids = find(suma);
+  N_SIMULATIONS = size(simulation_ids)(2)  % we get the number of unique simulation IDs
   
   scatter(colonies(:,1),colonies(:,2),20,'y',"filled");
   
@@ -166,7 +166,7 @@ function [output_data] = transectGenerator(shape_filename, colonies_filename, N_
     transectLength = LENGTH;
   else
     % if non-AGGRA: SERIES; then the total length is 4*L + 3*S
-    transectLength = 4 * LENGTH + 3 * SKIP;
+    transectLength = 4 * LENGTH + 3 * SPACING;
   endif
   
   % The remaining length is the largest size of the orientated rectangle where we 
@@ -233,7 +233,7 @@ function [output_data] = transectGenerator(shape_filename, colonies_filename, N_
       if (TRANSECT_TYPE==TYPE_AGGRA)
         % if AGGRA then are parallel, then the total length is LENGTH
         base = baseTransect(WIDTH,LENGTH);
-        base = traslatePolygon (base, [0 SKIP*(j-(N_SEGMENTS)/2 - 0.5) ] );
+        base = traslatePolygon (base, [0 SPACING*(j-(N_SEGMENTS)/2 - 0.5) ] );
         base = rotatePolygon (base, v(current_region,:));
         base = traslatePolygon (base, pointXY);
         plot (base(:,1),base(:,2))
@@ -242,7 +242,7 @@ function [output_data] = transectGenerator(shape_filename, colonies_filename, N_
         % if non-AGGRA: SERIES; then the total length is 4*L + 3*S
         % d: displacement vector among contiguous transects
         base = baseTransect(WIDTH,LENGTH);        
-        fwd_length = (j-1)*(LENGTH+SKIP)/windowLength;
+        fwd_length = (j-1)*(LENGTH+SPACING)/windowLength;
         sampling_point = sampling_points_uv(i,:);
         sampling_point(2) = sampling_point(2) + fwd_length;
         temp = sum (norm_acum_length < sampling_point(2)) + 1;
@@ -275,7 +275,7 @@ function [output_data] = transectGenerator(shape_filename, colonies_filename, N_
       scatter(colonies(in,1),colonies(in,2),15,'r',"filled");
       % we mask only those sampled colonies 
       masked_colonies = colonies(:,3) .* in;
-      temp = sum(_idx == masked_colonies);
+      temp = sum(simulation_ids == masked_colonies);
       %temp = sum(temp);
 
       % Account those inside the sampling polygon
@@ -285,9 +285,9 @@ function [output_data] = transectGenerator(shape_filename, colonies_filename, N_
     output_data(:,i + 1) = total_sampled_colonies;
   end
   % Finally we prepend the SIM ID to the first column
-  output_data (:,1) = _idx;
+  output_data (:,1) = simulation_ids;
   % suma was computed after mortality removal; its entries match the surviving IDs.
-  output_data (:,N_TRANSECTS + 2) = suma(_idx)';
+  output_data (:,N_TRANSECTS + 2) = suma(simulation_ids)';
   % And return the data
   return %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % ----------------------------------------------------------------------------
