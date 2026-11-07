@@ -1,9 +1,24 @@
 % batchProcess
 % Master batch processing script to automate parametrized test
 
-% DESIGN_CONFIGS: array of PARAMS vecctor containing specific configuration of each test
-% SITE_NAMES: array of site names as strings to be used as prefix for output files
-% MORTALITY_RATES: array of desired mortality rates to be tested
+% DESIGN_CONFIGS: one design per row, with five numeric fields:
+%   [WIDTH, LENGTH, SPACING, N_SEGMENTS, TRANSECT_TYPE]
+%   WIDTH, LENGTH: rectangle dimensions in metres.
+%   SPACING: metres between centerlines for parallel designs, or the gap
+%            between consecutive rectangle ends for series designs.
+%   N_SEGMENTS: number of component transects in each design placement.
+%   TRANSECT_TYPE: 0 = parallel AGGRA-style; 1 = collinear series.
+% NUMBER_TRANSECTS: number of random placements of the complete design.
+% SITE_NAMES:       array of site names as strings to be used as prefix for output files
+% MORTALITY_RATES:  array of desired mortality rates to be tested
+%
+% Example from the process/ directory (requires the Statistics package):
+%   pkg load statistics
+%   DESIGN_CONFIGS = [1 20 5 5 0];
+%   batchProcess(DESIGN_CONFIGS, 50, "FARO", [0]);
+% This uses five parallel 20 m x 1 m transects, spaced 5 m between
+% centerlines, for 50 placements at FARO with 0% mortality. It writes
+% FARO_P20_M0.csv in the current directory, overwriting an existing file.
 
 % Each iteration is saved as comma-delimited integer CSV with a header.
 % Columns: simulation_id, placement_1 ... placement_N, total_colonies.

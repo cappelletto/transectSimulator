@@ -108,22 +108,33 @@ function [output_data] = transectGenerator(window_filename, colonies_filename, N
   n_colonies = size(colonies)(1);
   % after loading the colonies, we must remove N colonies to simulate a MORTALITY_RATE
   % of the total population. Individuals are uniformly sampled for removal.
+  % TODO: This will be modified by a step in the pipeline that simulates non-uniform mortality
+  % for colony removal. Distance based models can be used to simulate diseases
   i = ceil (n_colonies * (MORTALITY_RATE)/100);
   % Now, we remove 'i' random colonies out of the total population
   % Obtain a random list with 'i' elements from 'n_colonies'. These colonies will be flaged for removal
   remove_idx = randperm (n_colonies, i);
   
-  % For colony removal, we simply change its SIMULATION_ID to a non valid number
+  % For colony removal, we simply change its SIMULATION_ID to a non valid number flag (in this case -1)
   colonies(remove_idx,3) = -1;
   
   % DONE: retrieve the index on non-empty simulation IDs. Expected range 1-100
   % After loading the colonies data, we must retrieve the list of existent simulation IDs
   % as non-repeated entries from colonies(:,3)
+  % FIXME: The current max of simulations is hardcoded to 100, based on old simualtion realizations
+  % TODO: Read the input CSV and determine the maximum number of simulations, based on the max value of
+  % the corresponding column
   suma = sum(colonies(:,3) == [1:100]);
   simulation_ids = find(suma);
   N_SIMULATIONS = size(simulation_ids)(2)  % we get the number of unique simulation IDs
   
-  scatter(colonies(:,1),colonies(:,2),20,'y',"filled");
+  % Keep colors stable by simulation ID without consuming random numbers.
+  % Colonies removed by mortality (ID -1) are shown in grey.
+  simulation_colors = hsv(100);
+  colony_colors = repmat([0.65 0.65 0.65], n_colonies, 1);
+  surviving_colonies = ismember(colonies(:,3), simulation_ids);
+  colony_colors(surviving_colonies,:) = simulation_colors(colonies(surviving_colonies,3),:);
+  scatter(colonies(:,1),colonies(:,2),20,colony_colors,"filled");
   
   color_list = ['b' 'g' 'k' 'c'];           % discrete color list for transect segments
   
