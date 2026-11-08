@@ -4,6 +4,8 @@ This repository contains the historical Octave implementation in `process/` and 
 
 For the functional Octave batch scripts, see the [parameter and input reference](docs/octave_parameters.md), including the distinction between placement count and component transect count.
 
+Octave batches create a new run directory with checked CSVs and one YAML manifest per site. See the [metadata and replay guide](docs/experiment_metadata.md) before generating datasets.
+
 The [pipeline diagram](docs/pipeline_prototype.svg) highlights the implemented sampler and the planned upstream and QGIS modules.
 
 GeoJSON is the selected spatial interchange format for the planned QGIS companion workflow. The current CLI still uses its prototype JSON schema; the GeoJSON adapter and CRS transformation are follow-up work documented in the prototype design.

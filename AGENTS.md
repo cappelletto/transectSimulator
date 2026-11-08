@@ -64,15 +64,15 @@ At a high level, the function:
 4. Loads all simulated colonies for a site.
 5. Randomly marks a requested percentage of all rows as removed by setting their simulation ID to `-1`.
 6. Draws design-bounded U/V seeds with `rand` for `N_TRANSECTS` placements.
-7. Constructs the full component set and accepts it when every rectangle's four corners are inside/on the window; retries up to `R = 5` times after the first attempt, then errors.
+7. Constructs the full component set and retries up to `R = 15` times after the first attempt if corners lie outside. Exhaustion warns and uses the last complete candidate; infeasible lateral bounds use U = 0.5.
 8. Uses `inpolygon` to count colonies inside each component, grouped by simulation ID.
-9. Returns a matrix with one row per surviving simulation ID: simulation ID in column 1 and one aggregate count per random design placement in the remaining columns.
+9. Returns a matrix with one row per simulation ID present before mortality (including zero-survivor rows): simulation ID in column 1 and one aggregate count per random design placement in the remaining columns.
 
 The committed batch results normally have 100 rows and 101 columns: one simulation-ID column plus 100 random placements. This wide matrix is information-equivalent to part of the requested long-form result, but it is not the 10,000-row `simulation x transect placement x count` format illustrated in the PDF.
 
-`batchProcess(DESIGN_CONFIGS, NUMBER_TRANSECTS, SITE_NAMES, MORTALITY_RATES)` calls the generator for each parameter combination and writes a file named `<SITE>_<P|S><LENGTH>_M<MORTALITY>.csv` in the current working directory. Run it from `process/` or a working directory whose `../data/` resolves to the intended inputs; its paths are relative to the working directory.
+`batchProcess(DESIGN_CONFIGS, NUMBER_TRANSECTS, SITE_NAMES, MORTALITY_RATES)` calls the generator for each parameter combination and writes a file named `<SITE>_<P|S><LENGTH>_N<N_SEGMENTS>_M<MORTALITY>.csv` in a new per-invocation output directory (optional fifth argument). Per-site YAML manifests record input/output hashes, source revision, parameters, and validation; source-file inventories, RNG states, and input/exported simulation-ID lists are omitted. Run it from `process/` or a working directory whose `../data/` resolves to the intended inputs; its paths are relative to the working directory.
 
-New batch exports have columns `simulation_id,survey_1,...,survey_N,total_colonies`; `N` is `NUMBER_TRANSECTS`. The historical committed result files retain their older whitespace-delimited, headerless format.
+New batch exports have columns `realization_id,survey_1,...,survey_N,total_colonies`; `N` is `NUMBER_TRANSECTS`. The historical committed result files retain their older whitespace-delimited, headerless format.
 
 ## Geometry assumptions
 
@@ -101,9 +101,9 @@ The code does not read the committed shapefile directly, inspect CRS metadata, v
 
 - The code produces raw colony counts. It does not calculate detection probabilities, compare method accuracy, estimate uncertainty, or perform the downstream spatial point-pattern analysis.
 - `data/points_*.csv` observed colonies are not accepted separately or used by the current main function. The current generator consumes the simulated-colony file only; observed-colony outputs in `results/AGGRA1` are historical artifacts.
-- Randomness is not seeded or exposed through an API, so a run cannot be reproduced from its output alone.
-- Mortality is sampled over all rows in a reef file, not independently at an exact rate within each simulation. A simulation ID vanishes if all of its colonies are removed. This is confirmed by committed mortality outputs with only 98 or 99 rows instead of 100.
-- Placement generation now restricts seeds by design extent and accepts only components whose four corners lie inside/on the window. This changes the legacy placement distribution and may reject designs that previously extended outside the window. Concave edge excursions between inside corners remain possible by the explicitly selected four-corner rule.
+- Batch manifests omit RNG seeds and states. Exact replay requires the caller to retain the initial RNG state separately and match the inputs, code, runtime, and batch order.
+- Mortality is sampled over all rows in a reef file, not independently at an exact rate within each simulation. Historical mortality outputs sometimes omitted fully removed simulations; new exports retain every original input ID, with zero survey counts and total when no colonies survive.
+- Placement generation restricts seeds by design extent and attempts four-corner containment; exhaustion warns and uses the last complete candidate even if corners lie outside. This changes the legacy placement distribution and may reject designs that previously extended outside the window. Concave edge excursions between inside corners remain possible by the explicitly selected four-corner rule.
 - Component rectangles are tested directly with `inpolygon`, but they are not clipped against the reef window. A colony inside a rectangle is counted regardless of whether a portion of that rectangle lies outside the window; because colonies are expected to lie within the window this may approximate the desired count, but sampled area is not calculated.
 - Boundary points returned by `inpolygon` as `on` are not separately excluded despite the nearby comment; `in` includes points on the boundary in MATLAB/Octave semantics.
 - Plotting and console output are embedded in the computational function, making headless batch execution and performance control difficult.
