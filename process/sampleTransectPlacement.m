@@ -1,9 +1,9 @@
 % Draw one bounded U/V seed and construct all component rectangles from it.
 % U is the cross-window fraction; V is normalized distance along the full strip.
-% R retries follow the first attempt. A placement passes only if every corner
-% of every component lies inside/on the window. Concave edges are not checked.
+% R retries follow the first attempt. After exhaustion, warn and return the last
+% complete candidate even if corners are outside. Concave edges are not checked.
 function [rectangles, sampling_points_uv] = sampleTransectPlacement( ...
-    window_polygon, cornerC, uu, vv, DESIGN_PARAMS, TRANSECT_TYPE, R)
+    window_polygon, cornerC, uu, vv, DESIGN_PARAMS, TRANSECT_TYPE, R, context = "Placement")
   WIDTH = DESIGN_PARAMS(1);
   LENGTH = DESIGN_PARAMS(2);
   SPACING = DESIGN_PARAMS(3);
@@ -49,16 +49,19 @@ function [rectangles, sampling_points_uv] = sampleTransectPlacement( ...
     endfor
     widths = region_widths(regions);
     if (any(widths <= 0))
-      continue;
+      error("sampleTransectPlacement:InvalidRegion", "Window contains a zero-width region");
     endif
     margin_u = max(half_width ./ widths);
     if (margin_u > 0.5)
-      continue; % This seed's region(s) cannot accommodate the lateral extent.
+      % No bounded lateral interval exists: still construct a full candidate.
+      seed_u = 0.5;
+    else
+      seed_u = margin_u + rand()*(1-2*margin_u);
     endif
-    seed_u = margin_u + rand()*(1-2*margin_u);
     sampling_points_uv = [seed_u, distance/window_length];
     rectangles = zeros(4, 2, N_SEGMENTS);
-    accepted = true;
+    accepted = margin_u <= 0.5;
+    outside_components = 0;
     for j=1:N_SEGMENTS
       region = regions(j);
       previous_length = cumulative_lengths(region) - region_lengths(region);
@@ -73,13 +76,14 @@ function [rectangles, sampling_points_uv] = sampleTransectPlacement( ...
       rectangles(:,:,j) = base * [direction; normal] + pointXY;
       if (!transectCornersInside(rectangles(:,:,j), window_polygon))
         accepted = false;
+        outside_components += 1;
       endif
     endfor
     if (accepted)
       return;
     endif
   endfor
-  error("sampleTransectPlacement:RetriesExhausted", ...
-        "No valid placement after %d attempts (%d retries): width=%g, length=%g, spacing=%g, components=%d, type=%d", ...
-        R+1, R, WIDTH, LENGTH, SPACING, N_SEGMENTS, TRANSECT_TYPE);
+  warning("sampleTransectPlacement:RetriesExhausted", ...
+        "%s: no fully bounded placement after %d attempts (%d retries); using last complete candidate (%d components with outside corners). width=%g, length=%g, spacing=%g, components=%d, type=%d", ...
+        context, R+1, R, outside_components, WIDTH, LENGTH, SPACING, N_SEGMENTS, TRANSECT_TYPE);
 end

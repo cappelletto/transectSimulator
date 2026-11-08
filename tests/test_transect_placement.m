@@ -30,20 +30,28 @@ function test_transect_placement()
   endfor
 
   % Force four-corner rejection with a narrow actual window but wide UV region.
-  % Six candidates consume two random draws each: initial attempt + five retries.
+  % Sixteen candidates consume two draws each: initial attempt + fifteen retries.
   narrow_window = [0 0; 100 0; 100 1; 0 1; 0 0];
   rng(99);
-  rand(12,1);
+  rand(32,1);
   expected_next = rand();
   rng(99);
-  failed = false;
-  try
-    sampleTransectPlacement(narrow_window, cornerC, uu, vv, [1 20 5 5], 0, 15);
-  catch err
-    failed = strcmp(err.identifier, "sampleTransectPlacement:RetriesExhausted");
-  end_try_catch
-  assert(failed);
+  lastwarn("");
+  rectangles = sampleTransectPlacement(narrow_window, cornerC, uu, vv, [1 20 5 5], 0, 15);
+  [message, identifier] = lastwarn();
+  assert(strcmp(identifier, "sampleTransectPlacement:RetriesExhausted"));
+  assert(isequal(size(rectangles),[4 2 5]));
+  assert(any(any(rectangles(:,2,:) > 1 | rectangles(:,2,:) < 0)));
   assert(rand() == expected_next);
+  % Also return a full set when the lateral seed interval itself is infeasible.
+  for mode=[0 1]
+    lastwarn("");
+    [rectangles, uv] = sampleTransectPlacement(narrow_window, cornerC, [0 1], vv, [2 10 5 3], mode, 15);
+    [message, identifier] = lastwarn();
+    assert(strcmp(identifier, "sampleTransectPlacement:RetriesExhausted"));
+    assert(isequal(size(rectangles),[4 2 3]));
+    assert(all(isfinite(rectangles(:))) && uv(1)==0.5);
+  endfor
 
   failed = false;
   try
@@ -70,6 +78,6 @@ function test_transect_placement()
     assert(isequal(output(:,end), [2; 2]));
   endfor
   global R;
-  assert(R == 5);
+  assert(R == 15);
   disp("PASS: parallel/series bounds, corners, dimensions, and fixed retries");
 end

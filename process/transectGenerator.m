@@ -1,12 +1,13 @@
 % INFO: Data will be exported with S rows and N_TRANSECTS + 2 columns
-% INFO: S: The number of non-empty simulations of colonies (up to 100)
+% INFO: S: The number of unique simulation IDs in the input, before mortality.
 % INFO: Column 1 is the simulation ID; columns 2 through N_TRANSECTS + 1
 % are sampled counts; the final column is the surviving colony total for that ID.
 
 % TODO: Export only non-NULL entries for simulations (instead of filling with ZEROES)
 % TODO: Create bool ON/OFF entry list to check which must be exported
 % Placements use design-specific U/V bounds and four-corner containment checks.
-% Boundary contact is accepted. Rectangle edges through concavities are not checked.
+% Boundary contact is accepted. Retry exhaustion warns and uses the last candidate.
+% Rectangle edges through concavities are not checked.
 
 % window_filename: file containing polygon as a closed loop: A-B-C-D-E-F-A
 % points_filename: file containing X-Y coordinates of real colonies 
@@ -16,6 +17,7 @@ function [output_data] = transectGenerator(window_filename, colonies_filename, N
   %- Transect shape polygon loading
   %------------------------------------------------
   % We print the input parameters in the console just for verification purposes
+  window_filename
   N_TRANSECTS
   WIDTH = DESIGN_PARAMS(1)
   LENGTH = DESIGN_PARAMS(2)
@@ -26,7 +28,7 @@ function [output_data] = transectGenerator(window_filename, colonies_filename, N
   TYPE_AGGRA = 0;
   TYPE_SERIES = 1;
   global R;
-  R = 15; % Fixed retry budget: five retries after the initial candidate.
+  R = 15; % Fixed retry budget: fifteen retries after the initial candidate.
 
   if (TRANSECT_TYPE==TYPE_AGGRA)
     printf ('TRANSECT_TYPE: AGGRA - PARALLEL\n')
@@ -108,6 +110,9 @@ function [output_data] = transectGenerator(window_filename, colonies_filename, N
   % Loading the simulated colonies (multicolumn data: ID, X, Y, SIM_ID
   colonies = load(colonies_filename);
   n_colonies = size(colonies)(1);
+  % Preserve the input population of simulation IDs, including zero-survivor rows.
+  realization_ids = unique(colonies(:,3))';
+  N_SIMULATIONS = numel(realization_ids)
   % after loading the colonies, we must remove N colonies to simulate a MORTALITY_RATE
   % of the total population. Individuals are uniformly sampled for removal.
   % TODO: This will be modified by a step in the pipeline that simulates non-uniform mortality
@@ -117,24 +122,17 @@ function [output_data] = transectGenerator(window_filename, colonies_filename, N
   % Obtain a random list with 'i' elements from 'n_colonies'. These colonies will be flaged for removal
   remove_idx = randperm (n_colonies, i);
   
-  % For colony removal, we simply change its SIMULATION_ID to a non valid number flag (in this case -1)
+  % For colony removal, we simply change its realization_id to a non valid number flag (in this case -1)
   colonies(remove_idx,3) = -1;
   
-  % DONE: retrieve the index on non-empty simulation IDs. Expected range 1-100
-  % After loading the colonies data, we must retrieve the list of existent simulation IDs
-  % as non-repeated entries from colonies(:,3)
-  % FIXME: The current max of simulations is hardcoded to 100, based on old simualtion realizations
-  % TODO: Read the input CSV and determine the maximum number of simulations, based on the max value of
-  % the corresponding column
-  suma = sum(colonies(:,3) == [1:100]);
-  simulation_ids = find(suma);
-  N_SIMULATIONS = size(simulation_ids)(2)  % we get the number of unique simulation IDs
+  % Surviving totals remain aligned to the original IDs, including zeros.
+  suma = sum(colonies(:,3) == realization_ids, 1);
   
   % Keep colors stable by simulation ID without consuming random numbers.
   % Colonies removed by mortality (ID -1) are shown in grey.
   simulation_colors = hsv(100);
   colony_colors = repmat([0.65 0.65 0.65], n_colonies, 1);
-  surviving_colonies = ismember(colonies(:,3), simulation_ids);
+  surviving_colonies = ismember(colonies(:,3), realization_ids);
   colony_colors(surviving_colonies,:) = simulation_colors(colonies(surviving_colonies,3),:);
   scatter(colonies(:,1),colonies(:,2),20,colony_colors,"filled");
   
@@ -144,10 +142,11 @@ function [output_data] = transectGenerator(window_filename, colonies_filename, N
   output_data = zeros(N_SIMULATIONS, N_TRANSECTS + 2);
 
   for i=1:N_TRANSECTS
-    % Build and validate the complete set before plotting or counting any hits.
+    % Build the full set; after containment retries, count even if corners escape.
     try
       [component_rectangles, sampling_points_uv] = sampleTransectPlacement( ...
-          polygon_shape, cornerC, uu, vv, DESIGN_PARAMS, TRANSECT_TYPE, R);
+          polygon_shape, cornerC, uu, vv, DESIGN_PARAMS, TRANSECT_TYPE, R, ...
+          sprintf("Placement %d in %s", i, window_filename));
     catch err
       error(err.identifier, "Placement %d in %s: %s", i, window_filename, err.message);
     end_try_catch
@@ -160,7 +159,7 @@ function [output_data] = transectGenerator(window_filename, colonies_filename, N
       scatter(colonies(in,1),colonies(in,2),15,'r',"filled");
       % we mask only those sampled colonies 
       masked_colonies = colonies(:,3) .* in;
-      temp = sum(simulation_ids == masked_colonies);
+      temp = sum(realization_ids == masked_colonies, 1);
       %temp = sum(temp);
 
       % Account those inside the sampling polygon
@@ -170,9 +169,9 @@ function [output_data] = transectGenerator(window_filename, colonies_filename, N
     output_data(:,i + 1) = total_sampled_colonies;
   end
   % Finally we prepend the SIM ID to the first column
-  output_data (:,1) = simulation_ids;
-  % suma was computed after mortality removal; its entries match the surviving IDs.
-  output_data (:,N_TRANSECTS + 2) = suma(simulation_ids)';
+  output_data (:,1) = realization_ids;
+  % suma was computed after mortality removal and follows the original ID order.
+  output_data (:,N_TRANSECTS + 2) = suma';
   % And return the data
   return %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % ----------------------------------------------------------------------------
