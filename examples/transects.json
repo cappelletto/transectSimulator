@@ -1,0 +1,10 @@
+{
+  "schema_version": "1",
+  "sampling_id": "example-visit",
+  "crs": "LOCAL:METRES",
+  "units": "m",
+  "transects": [
+    {"id": "t1", "start_x_m": 0, "start_y_m": 0, "length_m": 10, "width_m": 1, "angle_deg": 0},
+    {"id": "t2", "start_x_m": 7, "start_y_m": -1, "length_m": 3, "width_m": 1, "angle_deg": 90}
+  ]
+}

@@ -1,29 +1,34 @@
-% INFO: Data will be exported with S rows and N columns
-% INFO: S: The number of non-empty simulations of colonies (up to 100)
-% INFO: N: will be the number of transects (N_TRANSECTS)
+% INFO: Data will be exported with S rows and N_TRANSECTS + 2 columns
+% INFO: S: The number of unique simulation IDs in the input, before mortality.
+% INFO: Column 1 is the simulation ID; columns 2 through N_TRANSECTS + 1
+% are sampled counts; the final column is the surviving colony total for that ID.
 
 % TODO: Export only non-NULL entries for simulations (instead of filling with ZEROES)
 % TODO: Create bool ON/OFF entry list to check which must be exported
-% TODO: Current UV mapping approach may tend to produce out-of-bound colony seeds as the segment
-% polygons require 2D transformation using a 4-point correspondence
+% Placements use design-specific U/V bounds and four-corner containment checks.
+% Boundary contact is accepted. Retry exhaustion warns and uses the last candidate.
+% Rectangle edges through concavities are not checked.
 
-% shape_filename: file containing polygon as a closed loop: A-B-C-D-E-F-A
+% window_filename: file containing polygon as a closed loop: A-B-C-D-E-F-A
 % points_filename: file containing X-Y coordinates of real colonies 
-% shape_filename: file containing X-Y coordinates of simulated colonies
-function [output_data] = transectGenerator(shape_filename, colonies_filename, N_TRANSECTS, TEMPLATE_PARAMS, TRANSECT_TYPE, MORTALITY_RATE = 0)
+% colonies_filename: file containing X-Y coordinates of simulated colonies
+function [output_data] = transectGenerator(window_filename, colonies_filename, N_TRANSECTS, DESIGN_PARAMS, TRANSECT_TYPE, MORTALITY_RATE = 0)
   %------------------------------------------------
   %- Transect shape polygon loading
   %------------------------------------------------
   % We print the input parameters in the console just for verification purposes
+  window_filename
   N_TRANSECTS
-  WIDTH = TEMPLATE_PARAMS(1)
-  LENGTH = TEMPLATE_PARAMS(2)
-  SKIP = TEMPLATE_PARAMS(3)
-  N_SEGMENTS = TEMPLATE_PARAMS(4)  % Number of segments of the transect pattern
+  WIDTH = DESIGN_PARAMS(1)
+  LENGTH = DESIGN_PARAMS(2)
+  SPACING = DESIGN_PARAMS(3)
+  N_SEGMENTS = DESIGN_PARAMS(4)  % Number of segments of the transect pattern
   MORTALITY_RATE  % simulated colonies morality rate
   
   TYPE_AGGRA = 0;
   TYPE_SERIES = 1;
+  global R;
+  R = 15; % Fixed retry budget: fifteen retries after the initial candidate.
 
   if (TRANSECT_TYPE==TYPE_AGGRA)
     printf ('TRANSECT_TYPE: AGGRA - PARALLEL\n')
@@ -32,7 +37,7 @@ function [output_data] = transectGenerator(shape_filename, colonies_filename, N_
   endif
  
   % Import file containing polygon description as a closed loop: A-B-C-D-E-F-A
-  polygon_shape = load (shape_filename);
+  polygon_shape = load (window_filename);
 
   % Number of vertex in the list must be odd (starting vertex is counted twice)
   % So we subtracts 1, and obtain the number of vertex
@@ -105,177 +110,56 @@ function [output_data] = transectGenerator(shape_filename, colonies_filename, N_
   % Loading the simulated colonies (multicolumn data: ID, X, Y, SIM_ID
   colonies = load(colonies_filename);
   n_colonies = size(colonies)(1);
+  % Preserve the input population of simulation IDs, including zero-survivor rows.
+  realization_ids = unique(colonies(:,3))';
+  N_SIMULATIONS = numel(realization_ids)
   % after loading the colonies, we must remove N colonies to simulate a MORTALITY_RATE
   % of the total population. Individuals are uniformly sampled for removal.
+  % TODO: This will be modified by a step in the pipeline that simulates non-uniform mortality
+  % for colony removal. Distance based models can be used to simulate diseases
   i = ceil (n_colonies * (MORTALITY_RATE)/100);
   % Now, we remove 'i' random colonies out of the total population
   % Obtain a random list with 'i' elements from 'n_colonies'. These colonies will be flaged for removal
   remove_idx = randperm (n_colonies, i);
   
-  % For colony removal, we simply change its SIMULATION_ID to a non valid number
+  % For colony removal, we simply change its realization_id to a non valid number flag (in this case -1)
   colonies(remove_idx,3) = -1;
   
-  % DONE: retrieve the index on non-empty simulation IDs. Expected range 1-100
-  % After loading the colonies data, we must retrieve the list of existent simulation IDs
-  % as non-repeated entries from colonies(:,3)
-  suma = sum(colonies(:,3) == [1:100]);
-  _idx = find(suma);
-  N_SIMULATIONS = size(_idx)(2)  % we get the number of unique simulation IDs
+  % Surviving totals remain aligned to the original IDs, including zeros.
+  suma = sum(colonies(:,3) == realization_ids, 1);
   
-  scatter(colonies(:,1),colonies(:,2),20,'y',"filled");
+  % Keep colors stable by simulation ID without consuming random numbers.
+  % Colonies removed by mortality (ID -1) are shown in grey.
+  simulation_colors = hsv(100);
+  colony_colors = repmat([0.65 0.65 0.65], n_colonies, 1);
+  surviving_colonies = ismember(colonies(:,3), realization_ids);
+  colony_colors(surviving_colonies,:) = simulation_colors(colonies(surviving_colonies,3),:);
+  scatter(colonies(:,1),colonies(:,2),20,colony_colors,"filled");
   
   color_list = ['b' 'g' 'k' 'c'];           % discrete color list for transect segments
   
-  % DONE: improve sampling method. Starting points along all the shape window can produce
-  % partially invalid transects, as part of them may fall outside the shape window.
-  % In order to fix this, we must compute the maximum size of the starting point of
-  % each transect. This is specially valid for colinear transects. In standard AGGRA
-  % protocol, the impact is lower, as all transects are parallel and will (almost) fall
-  % inside the valid region.
-  
-  % INFO: For the current implementation, we assume that the starting point for the
-  % transects as the rightmost point (EAST), as the predominant current is pointing
-  % EAST-WEST. We will be using as pivot the corner C:3
-  
-  % Now, we define the bounding box for the starting seeds. This will speed-up this part
-  % because the search area will be smaller, when compared to all the window
-  total_points = 0; % We start with an empty list of seed points (none so far)
+  % One simulation per row: ID, sampled counts, and total surviving colonies.
+  output_data = zeros(N_SIMULATIONS, N_TRANSECTS + 2);
 
-  % According to the input data employed so far, the first point in the list correspond to the
-  % TOP-LEFT (NORTH-WEST) point. So, the segment of interest where our transect will start
-  % is the last one; this segment will contain the RIGHTMOST point.
-  % The last segment is K
-  
-  % The polygon is described CLOCKWISE as A-B-C-D, so the points B and C define the
-  % last segment, in the middle of which, we will pace our start point P
-
-  % windowLength is the sum of lengths of all regions. This is the maximum length to our transect
-  windowLength = sum(segment_length);
-  % acum_segment_length is the accumulated length for each region. It will be used to check
-  % in which region we fall for each transect segment
-  for _index=1:K
-    acum_segment_length(_index) = sum(segment_length(1:_index));
-  end
-  
-  % now, we must compute the transect template length. At this point, we must make a
-  % difference between standard AGGRA (parallel) so modified template (SERIES)
-  
-  if (TRANSECT_TYPE==TYPE_AGGRA)
-    % if AGGRA then are parallel, then the total length is LENGTH
-    transectLength = LENGTH;
-  else
-    % if non-AGGRA: SERIES; then the total length is 4*L + 3*S
-    transectLength = 4 * LENGTH + 3 * SKIP;
-  endif
-  
-  % The remaining length is the largest size of the orientated rectangle where we 
-  % can spawn the sampling seed points to be used in the next step.
-  windowLength
-  transectLength
-  seedAreaLength = windowLength - transectLength
-  
-  % To generate the sampling points, we can do it normalized in the UV space
-  % and the remap it to the full extent of the available space
-
-  % normalized sampling coordinates in UV space N_TRANSECTS rows x 2 columns (U V)
-  % QUICK FIX: There is a bug that creates sample_points outside the transect box due to excess in U dimension (width)
-  sampling_points_uv = unifrnd(0,0.95, N_TRANSECTS, 2);
-  % For the given distance in the V direction, and scaled with the seedAreaLength
-  % we can compute in which region it will fall, and then correct the sampling point
-  % range according to the segment_width
-
-  % we must scale sampling vector in V direction according to the seedAreaLength/windowLength ratio
-  sampling_points_uv(:,2)= sampling_points_uv(:,2) * seedAreaLength/windowLength; 
-  %sampling_points_uv(:,2)=[0.0:1/N_TRANSECTS:1.0];
-
-  %sampling_points_uv
-  segment_length = segment_length';
-  norm_segment_length = segment_length / windowLength;
-  norm_acum_length = acum_segment_length / windowLength;
-
-  % Here we correct the length, orientation and region assigned to each sampling point
-  % We can model each transect segment as a new sampling point, so they will be treated in the same way
-  
-  % Creating empty container for resulting samplings. As many rows as SIMULATIONS, and columns as
-  % TRANSECTS + 1. The additional (first) column as a container to the unique SIMULATION IDs
-  output_data = zeros(N_SIMULATIONS, 1 + N_TRANSECTS);
-  
   for i=1:N_TRANSECTS
-    
-    % First, we seek in which region it falls
-    current_region = sum (norm_acum_length < sampling_points_uv(i,2)) + 1; % so far, it works
-
-    % Second, we compute the UV coordinates in the current_region UV local system.
-    norm_excess_length = sampling_points_uv(i,2) - norm_acum_length(current_region) + norm_segment_length(current_region);
-    norm_excess_length = norm_excess_length/norm_segment_length(current_region);
-    
-    % Third, we remap local UV to global XY
-    % For this, we start from pivot corner C
-    pointXY = cornerC(current_region,:);
-    
-    %BUG: I have no clue why I can't do this as a direct sum*product
-    pointXY(1) = pointXY(1) + sampling_points_uv(i,1)*uu(current_region,1);
-    pointXY(2) = pointXY(2) + sampling_points_uv(i,1)*uu(current_region,2);
-
-    pointXY(1) = pointXY(1) + norm_excess_length*vv(current_region,1);
-    pointXY(2) = pointXY(2) + norm_excess_length*vv(current_region,2);
-
-    scatter (pointXY(1), pointXY(2), 15,'k',"filled")
-    
-    % now we iterate for each transect segment
-    % If TRANSECT_TYPE == TYPE_AGGRA then we may not need to separate each segment, as we already have a templateAGRRA1
-    % However, we can force every implementation as an iterated one, so we have a single model.
-    % For PARALLEL model, all pivot/seed points will share the same segment/orientation
-    % For SERIES models, each segment must be checked against all regions
-    total_sampled_colonies = zeros(N_SIMULATIONS,1); % Reset the accumulator
+    % Build the full set; after containment retries, count even if corners escape.
+    try
+      [component_rectangles, sampling_points_uv] = sampleTransectPlacement( ...
+          polygon_shape, cornerC, uu, vv, DESIGN_PARAMS, TRANSECT_TYPE, R, ...
+          sprintf("Placement %d in %s", i, window_filename));
+    catch err
+      error(err.identifier, "Placement %d in %s: %s", i, window_filename, err.message);
+    end_try_catch
+    total_sampled_colonies = zeros(N_SIMULATIONS,1);
     for j=1:N_SEGMENTS
-
-      if (TRANSECT_TYPE==TYPE_AGGRA)
-        % if AGGRA then are parallel, then the total length is LENGTH
-        base = baseTransect(WIDTH,LENGTH);
-        base = traslatePolygon (base, [0 SKIP*(j-(N_SEGMENTS)/2 - 0.5) ] );
-        base = rotatePolygon (base, v(current_region,:));
-        base = traslatePolygon (base, pointXY);
-        plot (base(:,1),base(:,2))
-        
-      else
-        % if non-AGGRA: SERIES; then the total length is 4*L + 3*S
-        % d: displacement vector among contiguous transects
-        base = baseTransect(WIDTH,LENGTH);        
-        fwd_length = (j-1)*(LENGTH+SKIP)/windowLength;
-        sampling_point = sampling_points_uv(i,:);
-        sampling_point(2) = sampling_point(2) + fwd_length;
-        temp = sum (norm_acum_length < sampling_point(2)) + 1;
-        new_region = min([K temp]); % so far, it works. We added min for border case when exceeds end limit
-
-        % Second, we compute the UV coordinates in the current_region UV local system.
-        norm_excess_length = sampling_point(2) - norm_acum_length(new_region) + norm_segment_length(new_region);
-        norm_excess_length = norm_excess_length/norm_segment_length(new_region);
-        
-        % Third, we remap local UV to global XY
-        % For this, we start from pivot corner C
-        pointXY = cornerC(new_region,:);
-        
-        %BUG: I have no clue why I can't do this as a direct sum*product
-        pointXY(1) = pointXY(1) + sampling_point(1)*uu(new_region,1);
-        pointXY(2) = pointXY(2) + sampling_point(1)*uu(new_region,2);
-
-        pointXY(1) = pointXY(1) + norm_excess_length*vv(new_region,1);
-        pointXY(2) = pointXY(2) + norm_excess_length*vv(new_region,2);
-
-        scatter (pointXY(1), pointXY(2), 12,'b',"filled")
-
-        base = rotatePolygon (base, v(new_region,:));
-        base = traslatePolygon (base, pointXY);
-        plot (base(:,1),base(:,2))
-        
-      end
+      base = component_rectangles(:,:,j);
+      plot(base(:,1),base(:,2))
       % Check which colonies fall inside the transect. We are dismissing those falling in the border 
       [in, on] = inpolygon(colonies(:,1), colonies(:,2), base(:,1), base(:,2));
       scatter(colonies(in,1),colonies(in,2),15,'r',"filled");
       % we mask only those sampled colonies 
       masked_colonies = colonies(:,3) .* in;
-      temp = sum(_idx == masked_colonies);
+      temp = sum(realization_ids == masked_colonies, 1);
       %temp = sum(temp);
 
       % Account those inside the sampling polygon
@@ -285,7 +169,9 @@ function [output_data] = transectGenerator(shape_filename, colonies_filename, N_
     output_data(:,i + 1) = total_sampled_colonies;
   end
   % Finally we prepend the SIM ID to the first column
-  output_data (:,1) = _idx;
+  output_data (:,1) = realization_ids;
+  % suma was computed after mortality removal and follows the original ID order.
+  output_data (:,N_TRANSECTS + 2) = suma';
   % And return the data
   return %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % ----------------------------------------------------------------------------
