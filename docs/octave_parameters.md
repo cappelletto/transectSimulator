@@ -10,7 +10,7 @@ This describes the current, functional Octave implementation in `process/batchPr
 | `N_TRANSECTS` | The same number of **design placements** | Argument 3 of `transectGenerator`; controls seed draws, the outer loop, and the number of sampled-count columns |
 | `N_SEGMENTS` | Number of rectangular **component transects within one placement** | Element 4 of `DESIGN_PARAMS`; controls the inner loop |
 
-One placement consists of `N_SEGMENTS` rectangles. The count for that placement is the sum of colony hits across its rectangles, separately for each spatial simulation ID. Thus `NUMBER_TRANSECTS = 100` and `N_SEGMENTS = 5` produce **100 sampled-count columns**, each representing one five-rectangle design, not 500 columns. The output header uses `placement_1` through `placement_100` to reflect this distinction.
+One placement consists of `N_SEGMENTS` rectangles. The count for that placement is the sum of colony hits across its rectangles, separately for each spatial simulation ID. Thus `NUMBER_TRANSECTS = 100` and `N_SEGMENTS = 5` produce **100 sampled-count columns**, each representing one five-rectangle design, not 500 columns. The output header uses `survey_1` through `survey_100` to reflect this distinction.
 
 ## Batch call and parameter mapping
 
@@ -47,7 +47,7 @@ For site code `FARO`, the batch script loads `../data/Shape/FARO_SHP.txt` and `.
 - The simulation file is comma-delimited, with three numeric columns (`X,Y,simulation_id`) and no header. Its current IDs are in `1..100`; there is no separate colony row-ID column.
 - `data/points_*.csv` contains observed point coordinates but is not read by `batchProcess`.
 - Coordinates and transect dimensions are treated as projected metres. CRS metadata are not read from these text inputs; verify the CRS before combining datasets.
-- The generator calls `unifrnd`; on Octave installations that require it, load the Statistics package with `pkg load statistics` before the batch call.
+- The placement generator uses Octave's built-in `rand`; the Statistics package is not required for placement sampling.
 
 The scripts do not currently validate these input contracts. Check dimensions, site codes, paths, and the chosen output filenames before a production run.
 
@@ -56,7 +56,6 @@ The scripts do not currently validate these input contracts. Check dimensions, s
 From `process/` in Octave:
 
 ```octave
-pkg load statistics
 DESIGN_CONFIGS = [1 20 5 5 0];       % width, length, spacing, components, parallel type
 NUMBER_TRANSECTS = 100;           % 100 placements of the full five-component design
 SITE_NAMES = ["FARO"; "COTE"];
@@ -67,11 +66,21 @@ batchProcess(DESIGN_CONFIGS, NUMBER_TRANSECTS, SITE_NAMES, MORTALITY_RATES);
 This writes `FARO_P20_M30.csv` and `COTE_P20_M30.csv` in the working directory. New exports have integer values and headers:
 
 ```text
-simulation_id,placement_1,placement_2,...,placement_100,total_colonies
+simulation_id,survey_1,survey_2,...,survey_100,total_colonies
 ```
 
 Each output row is a surviving spatial simulation ID. The last column is that ID's total surviving colonies after the 30% site-wide removal. The older files committed under `process/results/` predate this CSV header and final-column format.
 
-## Series design caveat
+## Bounded placement generation
 
-The series branch loops over `N_SEGMENTS`, but its seed-area calculation currently assumes exactly four components (`4 * LENGTH + 3 * SPACING`). Use `N_SEGMENTS = 4` for the current series design until that behavior is deliberately revised and characterized. The parallel branch uses the configured component count directly.
+U is the cross-window fraction and V is normalized distance along the strip in both modes. Parallel proposals reserve lateral space for `WIDTH + (N_SEGMENTS-1)*SPACING` and longitudinal space for `LENGTH`. Series proposals reserve lateral space for `WIDTH` and longitudinal space for `N_SEGMENTS*LENGTH + (N_SEGMENTS-1)*SPACING`; component starts are mapped into their respective window regions. Lateral bounds use the perpendicular width of those regions to account for skewed U/V axes.
+
+The complete component set is constructed from one seed before any colonies are counted. Every component must pass `transectCornersInside`: all four corners must lie inside or on the window boundary. This deliberately does not test rectangle edges through concavities. A rejected placement is redrawn up to the global constant `R = 5` retries after its initial attempt. Exhaustion raises an error with the placement index, window filename, and design details; no shortened output matrix is returned. An overlong design fails immediately.
+
+The five-component, 5 m-spacing example above spans 21 m laterally and may not fit the supplied reef windows. It now fails instead of exporting a placement with outside corners. Retry exhaustion does not prove no valid seed exists; it only means the fixed attempt budget was exhausted. The new bounds and retries change random placements compared with earlier runs.
+
+Run focused geometry and generator checks from the repository root with:
+
+```bash
+octave --quiet --no-gui --eval 'addpath("process"); addpath("tests"); test_transect_placement();'
+```

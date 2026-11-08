@@ -46,7 +46,7 @@ The PDF is a high-level requirements record, not proof that every described outp
 - `process/results/Tests01/`: batch outputs for six sites, three designs, and mortality rates 0, 10, 20, 30, and 40 percent.
 - `process/results/Tests01/_automate.sh`: historical in-place output formatting script; it is not the simulation driver.
 
-The historical Octave implementation has no dependency manifest or automated test suite. The Python prototype has `pyproject.toml` and a README. There is currently no continuous-integration configuration or declared license.
+The Octave implementation has focused placement checks in `tests/test_transect_placement.m`. The Python prototype has `pyproject.toml` and a README. There is currently no continuous-integration configuration or declared license.
 
 ## Implemented data flow
 
@@ -63,8 +63,8 @@ At a high level, the function:
 3. Approximates each region with local U/V vectors and lengths.
 4. Loads all simulated colonies for a site.
 5. Randomly marks a requested percentage of all rows as removed by setting their simulation ID to `-1`.
-6. Generates `N_TRANSECTS` random normalized seed positions with `unifrnd`.
-7. Constructs and transforms each component rectangle for the selected design.
+6. Draws design-bounded U/V seeds with `rand` for `N_TRANSECTS` placements.
+7. Constructs the full component set and accepts it when every rectangle's four corners are inside/on the window; retries up to `R = 5` times after the first attempt, then errors.
 8. Uses `inpolygon` to count colonies inside each component, grouped by simulation ID.
 9. Returns a matrix with one row per surviving simulation ID: simulation ID in column 1 and one aggregate count per random design placement in the remaining columns.
 
@@ -72,7 +72,7 @@ The committed batch results normally have 100 rows and 101 columns: one simulati
 
 `batchProcess(DESIGN_CONFIGS, NUMBER_TRANSECTS, SITE_NAMES, MORTALITY_RATES)` calls the generator for each parameter combination and writes a file named `<SITE>_<P|S><LENGTH>_M<MORTALITY>.csv` in the current working directory. Run it from `process/` or a working directory whose `../data/` resolves to the intended inputs; its paths are relative to the working directory.
 
-New batch exports have columns `simulation_id,placement_1,...,placement_N,total_colonies`; `N` is `NUMBER_TRANSECTS`. The historical committed result files retain their older whitespace-delimited, headerless format.
+New batch exports have columns `simulation_id,survey_1,...,survey_N,total_colonies`; `N` is `NUMBER_TRANSECTS`. The historical committed result files retain their older whitespace-delimited, headerless format.
 
 ## Geometry assumptions
 
@@ -103,15 +103,14 @@ The code does not read the committed shapefile directly, inspect CRS metadata, v
 - `data/points_*.csv` observed colonies are not accepted separately or used by the current main function. The current generator consumes the simulated-colony file only; observed-colony outputs in `results/AGGRA1` are historical artifacts.
 - Randomness is not seeded or exposed through an API, so a run cannot be reproduced from its output alone.
 - Mortality is sampled over all rows in a reef file, not independently at an exact rate within each simulation. A simulation ID vanishes if all of its colonies are removed. This is confirmed by committed mortality outputs with only 98 or 99 rows instead of 100.
-- Series seed-area length is hard-coded as `4 * LENGTH + 3 * SPACING`, even though iteration uses the configurable `N_SEGMENTS`. Values other than four are therefore inconsistent for series designs.
-- Seed width is sampled from `[0, 0.95]` as a documented quick fix. Longitudinal seed placement is restricted so the modeled design fits within the total strip length. This does not directly implement the source brief's statement that partially out-of-window transects may be acceptable and only intersecting colonies matter.
+- Placement generation now restricts seeds by design extent and accepts only components whose four corners lie inside/on the window. This changes the legacy placement distribution and may reject designs that previously extended outside the window. Concave edge excursions between inside corners remain possible by the explicitly selected four-corner rule.
 - Component rectangles are tested directly with `inpolygon`, but they are not clipped against the reef window. A colony inside a rectangle is counted regardless of whether a portion of that rectangle lies outside the window; because colonies are expected to lie within the window this may approximate the desired count, but sampled area is not calculated.
 - Boundary points returned by `inpolygon` as `on` are not separately excluded despite the nearby comment; `in` includes points on the boundary in MATLAB/Octave semantics.
 - Plotting and console output are embedded in the computational function, making headless batch execution and performance control difficult.
 - File paths depend on the caller's working directory, and most output metadata are encoded only in filenames. Historical committed results are headerless; new batch exports include column headers.
 - Input validation is absent for file shape, polygon ordering, parameter ranges, negative seed area, expected simulation IDs, and degenerate regions.
 - Several comments are stale or inconsistent with the files, including a statement that simulated data contain an explicit row ID. Current simulation files contain only X, Y, and simulation ID.
-- `unifrnd` introduces an Octave Statistics Package/MATLAB Statistics and Machine Learning Toolbox dependency that is not declared or loaded by the repository.
+- Placement generation uses built-in `rand`; the Statistics package is no longer needed for that operation.
 
 ### Items requiring scientific clarification before migration
 
@@ -144,7 +143,7 @@ Use history to distinguish intentional legacy behavior from accidental regressio
 ## Working and verification guidance
 
 - Run `batchProcess` from `process/` or a controlled directory with the expected `../data/` inputs. Check the working directory and target filenames before generating outputs.
-- Load the Statistics package before calling `transectGenerator` if the runtime requires it: `pkg load statistics`.
+- Run the focused Octave placement checks using the command in `docs/octave_parameters.md` when modifying geometry or retry behavior.
 - Avoid overwriting committed result files during exploratory runs. Write to a temporary or explicitly named characterization directory.
 - Fix the random seed when creating characterization fixtures and record the Octave/MATLAB version and package versions.
 - Check both dimensions and semantics of outputs. In particular, assert the expected simulation-ID set rather than checking only row count.

@@ -5,8 +5,8 @@
 
 % TODO: Export only non-NULL entries for simulations (instead of filling with ZEROES)
 % TODO: Create bool ON/OFF entry list to check which must be exported
-% TODO: Current UV mapping approach may tend to produce out-of-bound colony seeds as the segment
-% polygons require 2D transformation using a 4-point correspondence
+% Placements use design-specific U/V bounds and four-corner containment checks.
+% Boundary contact is accepted. Rectangle edges through concavities are not checked.
 
 % window_filename: file containing polygon as a closed loop: A-B-C-D-E-F-A
 % points_filename: file containing X-Y coordinates of real colonies 
@@ -25,6 +25,8 @@ function [output_data] = transectGenerator(window_filename, colonies_filename, N
   
   TYPE_AGGRA = 0;
   TYPE_SERIES = 1;
+  global R;
+  R = 15; % Fixed retry budget: five retries after the initial candidate.
 
   if (TRANSECT_TYPE==TYPE_AGGRA)
     printf ('TRANSECT_TYPE: AGGRA - PARALLEL\n')
@@ -138,149 +140,21 @@ function [output_data] = transectGenerator(window_filename, colonies_filename, N
   
   color_list = ['b' 'g' 'k' 'c'];           % discrete color list for transect segments
   
-  % DONE: improve sampling method. Starting points along all the shape window can produce
-  % partially invalid transects, as part of them may fall outside the shape window.
-  % In order to fix this, we must compute the maximum size of the starting point of
-  % each transect. This is specially valid for colinear transects. In standard AGGRA
-  % protocol, the impact is lower, as all transects are parallel and will (almost) fall
-  % inside the valid region.
-  
-  % INFO: For the current implementation, we assume that the starting point for the
-  % transects as the rightmost point (EAST), as the predominant current is pointing
-  % EAST-WEST. We will be using as pivot the corner C:3
-  
-  % Now, we define the bounding box for the starting seeds. This will speed-up this part
-  % because the search area will be smaller, when compared to all the window
-  total_points = 0; % We start with an empty list of seed points (none so far)
-
-  % According to the input data employed so far, the first point in the list correspond to the
-  % TOP-LEFT (NORTH-WEST) point. So, the segment of interest where our transect will start
-  % is the last one; this segment will contain the RIGHTMOST point.
-  % The last segment is K
-  
-  % The polygon is described CLOCKWISE as A-B-C-D, so the points B and C define the
-  % last segment, in the middle of which, we will pace our start point P
-
-  % windowLength is the sum of lengths of all regions. This is the maximum length to our transect
-  windowLength = sum(segment_length);
-  % acum_segment_length is the accumulated length for each region. It will be used to check
-  % in which region we fall for each transect segment
-  for _index=1:K
-    acum_segment_length(_index) = sum(segment_length(1:_index));
-  end
-  
-  % now, we must compute the transect template length. At this point, we must make a
-  % difference between standard AGGRA (parallel) so modified template (SERIES)
-  
-  if (TRANSECT_TYPE==TYPE_AGGRA)
-    % if AGGRA then are parallel, then the total length is LENGTH
-    transectLength = LENGTH;
-  else
-    % if non-AGGRA: SERIES; then the total length is 4*L + 3*S
-    transectLength = 4 * LENGTH + 3 * SPACING;
-  endif
-  
-  % The remaining length is the largest size of the orientated rectangle where we 
-  % can spawn the sampling seed points to be used in the next step.
-  windowLength
-  transectLength
-  seedAreaLength = windowLength - transectLength
-  
-  % To generate the sampling points, we can do it normalized in the UV space
-  % and the remap it to the full extent of the available space
-
-  % normalized sampling coordinates in UV space N_TRANSECTS rows x 2 columns (U V)
-  % QUICK FIX: There is a bug that creates sample_points outside the transect box due to excess in U dimension (width)
-  sampling_points_uv = unifrnd(0,0.95, N_TRANSECTS, 2);
-  % For the given distance in the V direction, and scaled with the seedAreaLength
-  % we can compute in which region it will fall, and then correct the sampling point
-  % range according to the segment_width
-
-  % we must scale sampling vector in V direction according to the seedAreaLength/windowLength ratio
-  sampling_points_uv(:,2)= sampling_points_uv(:,2) * seedAreaLength/windowLength; 
-  %sampling_points_uv(:,2)=[0.0:1/N_TRANSECTS:1.0];
-
-  %sampling_points_uv
-  segment_length = segment_length';
-  norm_segment_length = segment_length / windowLength;
-  norm_acum_length = acum_segment_length / windowLength;
-
-  % Here we correct the length, orientation and region assigned to each sampling point
-  % We can model each transect segment as a new sampling point, so they will be treated in the same way
-  
   % One simulation per row: ID, sampled counts, and total surviving colonies.
   output_data = zeros(N_SIMULATIONS, N_TRANSECTS + 2);
-  
+
   for i=1:N_TRANSECTS
-    
-    % First, we seek in which region it falls
-    current_region = sum (norm_acum_length < sampling_points_uv(i,2)) + 1; % so far, it works
-
-    % Second, we compute the UV coordinates in the current_region UV local system.
-    norm_excess_length = sampling_points_uv(i,2) - norm_acum_length(current_region) + norm_segment_length(current_region);
-    norm_excess_length = norm_excess_length/norm_segment_length(current_region);
-    
-    % Third, we remap local UV to global XY
-    % For this, we start from pivot corner C
-    pointXY = cornerC(current_region,:);
-    
-    %BUG: I have no clue why I can't do this as a direct sum*product
-    pointXY(1) = pointXY(1) + sampling_points_uv(i,1)*uu(current_region,1);
-    pointXY(2) = pointXY(2) + sampling_points_uv(i,1)*uu(current_region,2);
-
-    pointXY(1) = pointXY(1) + norm_excess_length*vv(current_region,1);
-    pointXY(2) = pointXY(2) + norm_excess_length*vv(current_region,2);
-
-    scatter (pointXY(1), pointXY(2), 15,'k',"filled")
-    
-    % now we iterate for each transect segment
-    % If TRANSECT_TYPE == TYPE_AGGRA then we may not need to separate each segment, as we already have a templateAGRRA1
-    % However, we can force every implementation as an iterated one, so we have a single model.
-    % For PARALLEL model, all pivot/seed points will share the same segment/orientation
-    % For SERIES models, each segment must be checked against all regions
-    total_sampled_colonies = zeros(N_SIMULATIONS,1); % Reset the accumulator
+    % Build and validate the complete set before plotting or counting any hits.
+    try
+      [component_rectangles, sampling_points_uv] = sampleTransectPlacement( ...
+          polygon_shape, cornerC, uu, vv, DESIGN_PARAMS, TRANSECT_TYPE, R);
+    catch err
+      error(err.identifier, "Placement %d in %s: %s", i, window_filename, err.message);
+    end_try_catch
+    total_sampled_colonies = zeros(N_SIMULATIONS,1);
     for j=1:N_SEGMENTS
-
-      if (TRANSECT_TYPE==TYPE_AGGRA)
-        % if AGGRA then are parallel, then the total length is LENGTH
-        base = baseTransect(WIDTH,LENGTH);
-        base = traslatePolygon (base, [0 SPACING*(j-(N_SEGMENTS)/2 - 0.5) ] );
-        base = rotatePolygon (base, v(current_region,:));
-        base = traslatePolygon (base, pointXY);
-        plot (base(:,1),base(:,2))
-        
-      else
-        % if non-AGGRA: SERIES; then the total length is 4*L + 3*S
-        % d: displacement vector among contiguous transects
-        base = baseTransect(WIDTH,LENGTH);        
-        fwd_length = (j-1)*(LENGTH+SPACING)/windowLength;
-        sampling_point = sampling_points_uv(i,:);
-        sampling_point(2) = sampling_point(2) + fwd_length;
-        temp = sum (norm_acum_length < sampling_point(2)) + 1;
-        new_region = min([K temp]); % so far, it works. We added min for border case when exceeds end limit
-
-        % Second, we compute the UV coordinates in the current_region UV local system.
-        norm_excess_length = sampling_point(2) - norm_acum_length(new_region) + norm_segment_length(new_region);
-        norm_excess_length = norm_excess_length/norm_segment_length(new_region);
-        
-        % Third, we remap local UV to global XY
-        % For this, we start from pivot corner C
-        pointXY = cornerC(new_region,:);
-        
-        %BUG: I have no clue why I can't do this as a direct sum*product
-        pointXY(1) = pointXY(1) + sampling_point(1)*uu(new_region,1);
-        pointXY(2) = pointXY(2) + sampling_point(1)*uu(new_region,2);
-
-        pointXY(1) = pointXY(1) + norm_excess_length*vv(new_region,1);
-        pointXY(2) = pointXY(2) + norm_excess_length*vv(new_region,2);
-
-        scatter (pointXY(1), pointXY(2), 12,'b',"filled")
-
-        base = rotatePolygon (base, v(new_region,:));
-        base = traslatePolygon (base, pointXY);
-        plot (base(:,1),base(:,2))
-        
-      end
+      base = component_rectangles(:,:,j);
+      plot(base(:,1),base(:,2))
       % Check which colonies fall inside the transect. We are dismissing those falling in the border 
       [in, on] = inpolygon(colonies(:,1), colonies(:,2), base(:,1), base(:,2));
       scatter(colonies(in,1),colonies(in,2),15,'r',"filled");

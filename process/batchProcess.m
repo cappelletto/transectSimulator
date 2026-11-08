@@ -12,8 +12,7 @@
 % SITE_NAMES:       array of site names as strings to be used as prefix for output files
 % MORTALITY_RATES:  array of desired mortality rates to be tested
 %
-% Example from the process/ directory (requires the Statistics package):
-%   pkg load statistics
+% Example from the process/ directory:
 %   DESIGN_CONFIGS = [1 20 5 5 0];
 %   batchProcess(DESIGN_CONFIGS, 50, "FARO", [0]);
 % This uses five parallel 20 m x 1 m transects, spaced 5 m between
@@ -21,7 +20,7 @@
 % FARO_P20_M0.csv in the current directory, overwriting an existing file.
 
 % Each iteration is saved as comma-delimited integer CSV with a header.
-% Columns: simulation_id, placement_1 ... placement_N, total_colonies.
+% Columns: simulation_id, survey_1 ... survey_N, total_colonies.
 % Each placement column counts colonies across the complete transect set.
 % Files use the following name convention:
 % $SITE_NAME_$TYPE$LENGTH_M$MORTALITY_RATES.csv
@@ -61,7 +60,7 @@ function [info] = batchProcess(DESIGN_CONFIGS, NUMBER_TRANSECTS, SITE_NAMES, MOR
         endif
         fprintf(fid, "simulation_id");
         for placement=1:NUMBER_TRANSECTS
-          fprintf(fid, ",placement_%d", placement);
+          fprintf(fid, ",survey_%d", placement);
         endfor
         fprintf(fid, ",total_colonies\n");
         row_format = ["%d" repmat(",%d", 1, columns(data)-1) "\n"];
