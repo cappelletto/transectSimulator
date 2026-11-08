@@ -2,6 +2,8 @@
 
 ## Current project phase
 
+The pre-refactor release is complete. Use `docs/next_feature_release.md` as the planning guide for the next feature cycle. Its backlog records proposed work; preserve the completed release's behavior until a specific change is authorized.
+
 The historical Octave implementation has been assessed. A separate Python sampler proof of concept is now in scope at the user's request; a full migration and statistical analysis remain future work. See `docs/python_prototype.md` for its contract and limits.
 
 The pre-refactor decision is to use GeoJSON for file based spatial interchange and QGIS visualization. The prototype CLI currently uses application-specific JSON. Keep metric Euclidean sampling in a verified projected CRS; implement GeoJSON reprojection at an adapter boundary. `docs/python_prototype.md` records the evidence, field naming convention, and remaining work.

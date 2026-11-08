@@ -1,5 +1,7 @@
 # Python transect sampler proof of concept
 
+The pre-refactor cycle is complete. See the [next feature release guide](next_feature_release.md) for the prioritized backlog and compatibility constraints; the interface and MVP descriptions below remain design references.
+
 ![Current sampler and planned pipeline modules](pipeline_prototype.svg)
 
 The diagram source is [`pipeline_prototype.dot`](pipeline_prototype.dot). Solid arrows show the working Python proof of concept; dashed arrows show planned modules and exports.

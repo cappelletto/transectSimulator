@@ -1,5 +1,7 @@
 # Transect simulator
 
+The pre-refactor release is complete. The [next feature release guide](docs/next_feature_release.md) records remaining fixes, naming/API decisions, and the recommended QGIS MVP sequence.
+
 This repository contains the historical Octave implementation in `process/` and a separate Python proof of concept in `src/transect_sampler/`. The Python package queries an already specified point distribution with one or more explicitly placed rectangular transects and returns individual observations. See [the prototype design](docs/python_prototype.md) for the pipeline, schemas, semantics, and follow-up work.
 
 For the functional Octave batch scripts, see the [parameter and input reference](docs/octave_parameters.md), including the distinction between placement count and component transect count.
